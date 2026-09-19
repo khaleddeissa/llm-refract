@@ -1,16 +1,6 @@
 name: Docker and browser tests
 on:
   pull_request:
-    paths:
-      - "apps/**"
-      - "crates/**"
-      - "packages/**"
-      - "tests/**"
-      - "Dockerfile"
-      - "docker-compose.yml"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/test.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,23 +13,61 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Check for relevant changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            relevant:
+              - "apps/**"
+              - "crates/**"
+              - "packages/**"
+              - "tests/**"
+              - "Dockerfile"
+              - "docker-compose.yml"
+              - "package.json"
+              - "package-lock.json"
+              - ".github/workflows/test.yml"
+
+      - if: steps.changes.outputs.relevant == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - uses: astral-sh/setup-uv@v6
+
+      - if: steps.changes.outputs.relevant == 'true'
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv sync --locked
-      - run: npm ci
-      - run: npm run build -w @refract-ai/sdk
-      - name: Cache Playwright browsers
+
+      - if: steps.changes.outputs.relevant == 'true'
+        run: uv sync --locked
+
+      - if: steps.changes.outputs.relevant == 'true'
+        run: npm ci
+
+      - if: steps.changes.outputs.relevant == 'true'
+        run: npm run build -w @refract-ai/sdk
+
+      - if: steps.changes.outputs.relevant == 'true'
+        name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
-      - run: docker compose up --build -d --wait
-      - run: make test-integration test-interfaces test-e2e
-      - if: always()
+
+      - if: steps.changes.outputs.relevant == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - if: steps.changes.outputs.relevant == 'true'
+        run: docker compose up --build -d --wait
+
+      - if: steps.changes.outputs.relevant == 'true'
+        run: make test-integration test-interfaces test-e2e
+
+      - if: always() && steps.changes.outputs.relevant == 'true'
         run: docker compose logs && docker compose down
+
+      - if: steps.changes.outputs.relevant != 'true'
+        run: echo "No relevant files changed — skipping integration tests."
