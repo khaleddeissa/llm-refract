@@ -1,0 +1,30 @@
+{"format":"refract.artifact.v1","encoding":"json","sha256":"ebcd680c2e15ec76c8eabbc4d42d060a7137d9af2be8bbffbf2eeeeab7bedb37"}
+{
+  "spec_version": "refract.execution.v1",
+  "id": "run_4b2f81bd-67b6-4e0c-b1ea-498931a5f580",
+  "name": "customer-support",
+  "status": "completed",
+  "started_at": "2026-09-19T13:54:04.283Z",
+  "ended_at": "2026-09-19T13:54:04.292Z",
+  "metadata": {},
+  "events": [
+    {
+      "type": "generation",
+      "name": "Draft answer",
+      "output": {
+        "text": "Returns within 30 days."
+      },
+      "attributes": {
+        "provider": "demo"
+      },
+      "id": "evt_e6fd7f86-fe93-41c3-bcec-b0dc8be64333",
+      "run_id": "run_4b2f81bd-67b6-4e0c-b1ea-498931a5f580",
+      "parent_id": null,
+      "timestamp": "2026-09-19T13:54:04.291Z",
+      "status": "completed",
+      "duration_ms": 0,
+      "input": null,
+      "replay_policy": "RECORDED"
+    }
+  ]
+}

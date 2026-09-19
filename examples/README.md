@@ -22,3 +22,6 @@ The small readable reference recording in `artifacts/demo.rfr` is committed; gen
 
 Demo model outputs are synthetic and need no provider keys. Production use requires your actual
 application calls and appropriate capture policies; these examples are not production deployment templates.
+
+The [saved smoke-test artifacts](artifacts/smoke_test/README.md) include nine Python/Node outputs and a
+regression report, with the scenario, value provenance and reproduction commands for each.

@@ -1,0 +1,30 @@
+{"format":"refract.artifact.v1","encoding":"json","sha256":"317916f5763c09a79950a639e4c0c3516e45e874d86067c2abab2f367b97d57f"}
+{
+  "spec_version": "refract.execution.v1",
+  "id": "run_11f459bb-d952-4f33-a88a-19740e7850c1",
+  "name": "beta",
+  "status": "completed",
+  "started_at": "2026-09-19T14:18:44.286Z",
+  "ended_at": "2026-09-19T14:18:44.302Z",
+  "metadata": {},
+  "events": [
+    {
+      "type": "tool.call",
+      "name": "lookup",
+      "input": {
+        "api_key": "[REDACTED]"
+      },
+      "output": {
+        "team": "beta"
+      },
+      "id": "evt_7f9000ff-5244-42ed-81f7-59a156b7d91f",
+      "run_id": "run_11f459bb-d952-4f33-a88a-19740e7850c1",
+      "parent_id": null,
+      "timestamp": "2026-09-19T14:18:44.287Z",
+      "status": "completed",
+      "duration_ms": 0,
+      "attributes": {},
+      "replay_policy": "RECORDED"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{"format":"refract.artifact.v1","encoding":"json","sha256":"22bc384244c44b5529f0a4dc9e715bf11319cd8cd8bc8933f695ceee6723dd7c"}
+{
+  "spec_version": "refract.execution.v1",
+  "id": "run_b59a34a0-1a5e-4fc1-bff3-a933944b1889",
+  "name": "policy-rag",
+  "status": "completed",
+  "started_at": "2026-09-19T14:18:43.717915+00:00",
+  "ended_at": "2026-09-19T14:18:43.718205+00:00",
+  "metadata": {
+    "environment": "example"
+  },
+  "events": [
+    {
+      "id": "evt_06791751-d4d3-4119-bd4c-7c125016ec01",
+      "run_id": "run_b59a34a0-1a5e-4fc1-bff3-a933944b1889",
+      "parent_id": null,
+      "type": "retrieval",
+      "name": "Search policy",
+      "timestamp": "2026-09-19T14:18:43.718030+00:00",
+      "duration_ms": 0,
+      "status": "completed",
+      "input": {
+        "query": "returns"
+      },
+      "output": {
+        "documents": [
+          {
+            "id": "returns-v1",
+            "text": "Returns within 30 days."
+          }
+        ]
+      },
+      "attributes": {},
+      "replay_policy": "RECORDED"
+    },
+    {
+      "id": "evt_8ef148d0-7d93-4d27-b202-e4de0d48140b",
+      "run_id": "run_b59a34a0-1a5e-4fc1-bff3-a933944b1889",
+      "parent_id": "evt_06791751-d4d3-4119-bd4c-7c125016ec01",
+      "type": "generation",
+      "name": "Answer with citation",
+      "timestamp": "2026-09-19T14:18:43.718138+00:00",
+      "duration_ms": 0,
+      "status": "completed",
+      "input": null,
+      "output": {
+        "answer": "You have 30 days.",
+        "citations": [
+          "returns-v1"
+        ]
+      },
+      "attributes": {
+        "provider": "demo",
+        "model": "recorded"
+      },
+      "replay_policy": "RECORDED"
+    }
+  ]
+}
