@@ -95,8 +95,16 @@ await refract.run(
 ```
 
 `endpoint` is optional: files work offline. Any provider or framework can emit canonical events;
-automatic instrumentation for every provider is not implied. SDKs and images are not yet published to
-registries; see [installation and development](docs/development.md) for building/consuming this checkout.
+automatic instrumentation for every provider is not implied.
+
+```bash
+pip install refract
+uv tool install refract
+npm install @refract-ai/sdk
+docker pull ghcr.io/khaleddeissa/llm-refract:latest
+```
+
+See [installation and development](docs/development.md) for building from source instead.
 
 ## Debug locally, inspect in Docker, compare in CI
 

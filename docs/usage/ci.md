@@ -18,9 +18,15 @@ jobs:
           actual: .examples/actual.rfr
 ```
 
-That relative Action path applies inside this repository. In another repository, check out Refract into
-a separate directory and use `./path-to-refract/packages/github-action`, or reference a reviewed commit
-as `khaleddeissa/llm-refract/packages/github-action@<commit>`. No Marketplace release is claimed.
+That relative Action path applies inside this repository. In another repository, reference a tagged
+release instead:
+
+```yaml
+- uses: khaleddeissa/llm-refract/packages/github-action@v0.1.0
+```
+
+This Action lives in a monorepo rather than its own repository, so it is not currently listed on the
+GitHub Marketplace — referencing it by tag works identically either way.
 
 The composite Action builds the Rust CLI, validates both inputs and writes `refract-report.json`.
 Differences or invalid artifacts fail the step. The report records event-level differences; thresholds,
@@ -33,4 +39,5 @@ python3 packages/github-action/compare.py examples/artifacts/demo.rfr .examples/
 
 Review baseline updates as code changes. Upload reports/recordings with your CI artifact step only
 under your own data-retention policy. Repository CI runs on pushes/PRs/manual dispatch, with no scheduled
-jobs. Dependabot update checks are monthly. Release workflows build candidates without publishing.
+jobs. Dependabot update checks are monthly. Tagged releases publish container images, npm and PyPI
+packages via `.github/workflows/publish.yml`.

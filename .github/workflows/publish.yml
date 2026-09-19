@@ -2,6 +2,11 @@ name: Publish
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.1.0)"
+        required: true
 permissions:
   contents: read
 concurrency:
@@ -34,6 +39,10 @@ jobs:
           tags: |
             ghcr.io/khaleddeissa/llm-refract:${{ steps.meta.outputs.tag }}
             ghcr.io/khaleddeissa/llm-refract:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/khaleddeissa/llm-refract
+            org.opencontainers.image.description=Portable execution recording, replay and diff engine for AI systems
+            org.opencontainers.image.licenses=Apache-2.0
 
   npm:
     needs: validate
