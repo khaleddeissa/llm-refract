@@ -1,0 +1,13 @@
+import { refract } from "../../../packages/typescript/dist/index.js";
+await refract.run(
+  "customer-support",
+  () => {
+    refract.event({
+      type: "generation",
+      name: "Draft answer",
+      output: { text: "Returns within 30 days." },
+      attributes: { provider: "demo" },
+    });
+  },
+  { path: "typescript-example.rfr" },
+);
