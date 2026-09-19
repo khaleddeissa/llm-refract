@@ -1,0 +1,12 @@
+[project]
+name = "refract-mcp"
+version = "0.1.0"
+description = "MCP access to Refract executions"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["mcp>=1.26,<2"]
+[project.scripts]
+refract-mcp = "refract_mcp.server:main"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
