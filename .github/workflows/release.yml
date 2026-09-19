@@ -2,7 +2,7 @@ name: Build release candidate
 on:
   workflow_dispatch:
 permissions:
-  contents:
+  contents: read
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
