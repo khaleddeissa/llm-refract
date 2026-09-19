@@ -59,8 +59,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: npm install -g npm@latest
       - run: npm ci
-      - run: npm run build -w @refract-ai/sdk
-      - run: npm publish -w @refract-ai/sdk --provenance --access public
+      - run: npm run build -w @llm-refract/sdk
+      - run: npm publish -w @llm-refract/sdk --provenance --access public
 
   pypi:
     needs: validate
