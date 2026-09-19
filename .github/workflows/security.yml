@@ -1,0 +1,22 @@
+name: Security
+on:
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v6
+      - uses: dtolnay/rust-toolchain@1.94.0
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit
+      - run: npm ci && npm audit --omit=dev
+      - run: uv sync --locked && uv run --with pip-audit pip-audit

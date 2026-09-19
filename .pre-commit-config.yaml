@@ -1,0 +1,41 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: docs/architecture/product-vision.md
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: detect-private-key
+      - id: check-merge-conflict
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: Rust formatting
+        entry: cargo fmt --all --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: ruff
+        name: Python lint
+        entry: uv run ruff check
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: Python formatting
+        entry: uv run ruff format --check
+        language: system
+        types: [python]
+      - id: prettier
+        name: Frontend and documentation formatting
+        entry: npx --no-install prettier --check
+        language: system
+        types_or: [javascript, ts, tsx, json, yaml, markdown, css]
+        exclude: "^(docs/architecture/product-vision.md|package-lock.json)$"
+      - id: commitlint
+        name: Conventional Commits
+        entry: npx --no-install commitlint --edit
+        language: system
+        stages: [commit-msg]

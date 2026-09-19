@@ -1,0 +1,9 @@
+Cargo.lock
+uv.lock
+package-lock.json
+docs/architecture/product-vision.md
+.cache
+.venv
+target
+dist
+node_modules
