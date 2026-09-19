@@ -7,6 +7,9 @@ inputs:
   actual:
     description: Newly recorded .rfr or canonical JSON path
     required: true
+branding:
+  icon: activity
+  color: purple
 runs:
   using: composite
   steps:

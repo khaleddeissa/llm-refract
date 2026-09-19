@@ -1,10 +1,12 @@
 {
   "name": "@refract-ai/sdk",
-  "private": true,
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,6 +16,12 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khaleddeissa/llm-refract",
+    "directory": "packages/typescript"
+  },
+  "license": "Apache-2.0",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
