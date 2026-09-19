@@ -1,0 +1,26 @@
+name: Build release candidate
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
+  package:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v6
+      - run: npm ci && make build-cli build-sdk
+      - run: npm pack -w @refract-ai/sdk --pack-destination dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: |
+            target/release/refract
+            dist/*
