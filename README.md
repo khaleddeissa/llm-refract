@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/llm-refract-logo.svg" width="96" height="96" alt="Refract green diamond" />
+
 # llm-refract
 
 **An open execution layer for AI systems.**
@@ -12,59 +14,59 @@ Record executions as portable artifacts. Inspect every step. Replay captured out
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Rust](https://img.shields.io/badge/Rust-2024-000000?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-SDK-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](packages/typescript)
-[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-MCP-000000?style=for-the-badge)](mcp)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](docker-compose.yaml)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-MCP-000000?style=for-the-badge)](packages/mcp)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-Apache--2.0-0D75B8?style=for-the-badge)](LICENSE)
 
-[Quick start](#quick-start) · [Examples](examples) · [API](docs/api.md) · [MCP](mcp) · [Contributing](CONTRIBUTING.md)
+[Usage modes](#one-engine-many-interfaces) · [Examples](examples) · [API](docs/api.md) · [MCP](packages/mcp) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
-## Why Refract?
+## AI executions you can inspect, share and compare
 
-AI failures span model calls, tool results, retrieval and changing application state.
-Refract captures those steps in one provider-neutral execution model and a portable `.rfr` file,
-so a recording can travel from a running application to a developer machine or CI.
+`llm-refract` records model calls, tools, retrieval, decisions, state changes, checkpoints and failures
+in a provider-neutral execution model. A portable `.rfr` recording connects your application,
+terminal, browser, coding agent and regression pipeline.
 
-- **Portable evidence** — versioned ZIP artifacts with SHA-256 checksums and bounded validation.
-- **Provider-neutral recording** — Python and TypeScript SDKs with explicit events and async context isolation.
-- **Execution inspection** — Rust CLI, REST API, React timeline and event inspector.
-- **Recorded playback** — examine captured outputs without calling external tools or models.
-- **Fork and compare** — preserve execution prefixes and identify semantic differences.
-- **Agent access** — eight read-only MCP tools and ten operational skills.
-- **Regression checks** — compare fresh application recordings with reviewed baselines in CI.
-
-## Quick start
-
-```bash
-git clone https://github.com/khaleddeissa/llm-refract.git
-cd llm-refract
-docker compose up --build -d --wait
-curl -fsS -X POST http://localhost:8000/v1/runs \
-  -H 'Content-Type: application/json' \
-  --data-binary @tests/fixtures/simple-run/execution.json
+```text
+Python / TypeScript / native JSON
+               ↓
+      Canonical execution → readable .rfr
+               ↓                 ↓
+        Rust REST API       Rust libraries / CLI
+               ↓                 ↓
+       Web UI / MCP      inspect · replay · fork · diff
+                                 ↓
+                         regression checks in CI
 ```
 
-Open **http://localhost:8000** to inspect the sample execution, replay its outputs, fork before a step,
-compare runs or download an artifact. Duplicate imports return `409` to preserve immutable snapshots.
-SQLite data persists in a named Docker volume.
+## One engine, many interfaces
 
-## Python
+| Interface            | What you can do                                                                         | Guide                                  |
+| -------------------- | --------------------------------------------------------------------------------------- | -------------------------------------- |
+| Python SDK           | Record sync/async applications, decorators, explicit events, files and API submission   | [Python](docs/usage/python.md)         |
+| npm / TypeScript SDK | Record Node applications, isolate concurrent runs, write/read artifacts, send snapshots | [TypeScript](docs/usage/typescript.md) |
+| Rust crates          | Embed validation, artifacts, replay, diff and storage in your own Rust program          | [Rust](docs/usage/rust.md)             |
+| CLI                  | Inspect, validate, pack/unpack, replay, fork, diff or start a server                    | [CLI](docs/usage/cli.md)               |
+| REST API             | Store/read executions, export files, compare runs and create branches                   | [API](docs/api.md)                     |
+| Docker image + UI    | Run a persistent local execution workspace and compare recordings in the browser        | [Docker](docs/usage/docker.md)         |
+| MCP                  | Give an agent ten read-only tools; optionally enable import and prefix-fork tools       | [MCP](docs/usage/mcp.md)               |
+| Skills               | Teach agents supported inspection, debugging, artifact and regression workflows         | [Skills](docs/usage/skills.md)         |
+| GitHub Action        | Compare fresh application output against a reviewed execution baseline                  | [CI](docs/usage/ci.md)                 |
+| `.rfr` format        | Carry readable, versioned, checksummed execution data between these interfaces          | [File format](docs/usage/artifacts.md) |
 
-```bash
-uv sync --locked
-uv run python examples/python/basic/record.py
-```
+The Rust engine owns validation, persistence, replay policies and comparison. SDKs capture data;
+MCP and the UI call the same API. Skills provide operating instructions; they are not separate engines.
+
+## Record in your application
+
+**Python**
 
 ```python
 import refract
 
-with refract.run("support-agent", path="support.rfr"):
-    lookup = refract.event(
-        type="retrieval",
-        name="Find policy",
-        output={"documents": [{"id": "returns", "days": 30}]},
-    )
+with refract.run("support-agent", path="support.rfr", endpoint="http://localhost:8000"):
+    lookup = refract.event(type="retrieval", name="Find policy", output={"days": 30})
     refract.event(
         type="generation",
         name="Answer",
@@ -74,16 +76,7 @@ with refract.run("support-agent", path="support.rfr"):
     )
 ```
 
-Add `endpoint="http://localhost:8000"` to submit the completed run to the API.
-Recordings use new output files; existing artifacts are never silently overwritten.
-
-## TypeScript
-
-```bash
-npm ci
-npm run build -w @refract-ai/sdk
-node examples/typescript/basic/record.mjs
-```
+**TypeScript / Node**
 
 ```typescript
 import { refract } from "@refract-ai/sdk";
@@ -94,7 +87,6 @@ await refract.run(
     refract.event({
       type: "tool.call",
       name: "lookup_order",
-      input: { order_id: "123" },
       output: { status: "shipped" },
     });
   },
@@ -102,88 +94,59 @@ await refract.run(
 );
 ```
 
-SDKs are currently consumed from this workspace; package registry publication is not enabled.
-See [all examples](examples) for RAG, failures, state snapshots, concurrent runs and MCP.
+`endpoint` is optional: files work offline. Any provider or framework can emit canonical events;
+automatic instrumentation for every provider is not implied. SDKs and images are not yet published to
+registries; see [installation and development](docs/development.md) for building/consuming this checkout.
 
-## CLI
+## Debug locally, inspect in Docker, compare in CI
 
-```bash
-cargo run -p refract-cli -- pack tests/fixtures/simple-run/execution.json -o original.rfr
-cargo run -p refract-cli -- inspect original.rfr
-cargo run -p refract-cli -- replay original.rfr
-cargo run -p refract-cli -- fork original.rfr --from evt_2 -o branch.rfr
-cargo run -p refract-cli -- diff original.rfr branch.rfr
-cargo run -p refract-cli -- validate branch.rfr
-```
+- **Offline development:** capture `.rfr`, open it in a text editor, then use the CLI to validate,
+  inspect or compare it. No account, model key or server is required.
+- **Application + Docker:** point either SDK at your container's REST endpoint. Open the bundled
+  viewer to inspect a timeline, compare runs, fork before a step or export evidence.
+- **Agent workflows:** attach the MCP stdio server and load an operational skill. Read tools inspect
+  existing evidence; optional write tools import snapshots or create prefix branches.
+- **GitHub CI:** generate an actual recording from the application under test and compare it against
+  a reviewed baseline with the included repository Action.
+- **Production capture:** manual recording can be integrated into application code, subject to your
+  privacy/error-handling requirements. The current server lacks authentication, tenancy, retention
+  and encrypted exports; it is not ready for public multi-tenant production hosting.
+  See [production boundaries](docs/production.md).
 
-`diff` returns a nonzero exit status when executions differ. Forks contain the recorded prefix before
-the chosen event; they do not execute new steps. Recorded playback returns captured values, not a rerun
-of arbitrary application code.
+## The `.rfr` execution file
 
-## MCP and agent skills
-
-```bash
-REFRACT_SERVER_URL=http://localhost:8000 uv run refract-mcp
-uv run python examples/mcp/client.py
-```
-
-Connect an MCP client through stdio to search runs, inspect events and execution graphs, compare runs,
-find the first divergence or export execution data. See [client configuration](mcp/README.md).
-[Operational skills](skills) document the implemented debugging, replay, fork and regression workflows.
-
-## Regression checks
-
-Generate a fresh recording from your application, then compare it against a reviewed baseline:
+New `.rfr` files are **UTF-8 text**: a one-line JSON format/checksum header followed by formatted
+execution JSON. They open normally in editors. SHA-256 detects payload corruption; it is not a signature.
 
 ```bash
-cargo build -p refract-cli
-python3 action/compare.py baseline.rfr actual.rfr --cli target/debug/refract
+refract inspect recording.rfr
+refract validate recording.rfr
+refract unpack recording.rfr -o execution.json
+refract fork recording.rfr --from evt_2 -o branch.rfr
+refract diff recording.rfr branch.rfr
 ```
 
-The check writes `refract-report.json` and fails on semantic differences or invalid artifacts.
-A [repository GitHub Action](action) is included; it is not yet published to Marketplace.
+Older recordings used ZIP and showed binary characters in editors. The Rust reader still supports
+them; [conversion instructions](docs/usage/artifacts.md) explain how to create a readable replacement.
+Checked-in samples live in [examples/artifacts](examples/artifacts); generated examples go in `.examples/`.
 
-## Project layout
+Recorded replay returns captured outputs and never invokes external tools/models. Forking preserves
+a prefix and lineage; it does not resume application code. Diff compares ordered event semantics,
+not arbitrary application behavior. Regression checks need a **fresh** execution from the code under test.
 
-| Location               | Implementation                                                                         |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `crates/`              | Rust model, artifact engine, storage, replay, diff, collector boundary, server and CLI |
-| `packages/python/`     | Python instrumentation SDK                                                             |
-| `packages/typescript/` | TypeScript instrumentation SDK                                                         |
-| `ui/`                  | React execution viewer                                                                 |
-| `mcp/server/`          | Executable MCP stdio service                                                           |
-| `skills/`              | Ten operational agent skills                                                           |
-| `action/`              | Baseline comparison runner and GitHub Action                                           |
-| `spec/`, `migrations/` | Wire schemas, artifact format and SQLite migrations                                    |
+## Execution inspector
 
-The Rust server implementation is [here](crates/refract-server/src/lib.rs).
-`sh server/run.sh` starts it locally; [API documentation](docs/api.md) lists endpoints and configuration.
+Explore recorded events, inspect inputs and outputs, replay captured results, and compare runs in the
+bundled browser workspace. See the [inspector walkthrough](docs/usage/inspector.md) for all three views.
 
-## Development
+[![Execution inspector with a selected generation event](assets/Inspector_Layout_3.PNG)](docs/usage/inspector.md)
 
-Requires Rust 1.94, Python 3.11+, `uv`, and Node.js 22.12+ (24 recommended).
+## Explore the project
 
-```bash
-make setup
-make lint test build
-make generate docs
-make hooks
-# With the server running:
-make test-integration
-npx playwright install --with-deps chromium
-make test-e2e
-```
-
-## Status and boundaries
-
-Refract is an early development release for local use. The implemented stack uses SQLite and native
-JSON ingestion. OTLP/gRPC, PostgreSQL/S3, automatic provider adapters and approved live execution
-remain [roadmap work](docs/roadmap.md). Authentication and encrypted exports are not implemented.
-Key-based redaction is enabled, but free-text sensitive data still requires review before sharing.
-See [security guidance](SECURITY.md) and the [artifact specification](spec/artifact/rfr-v1.md).
-
-## Contributing and license
-
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for development checks and
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
-Licensed under [Apache-2.0](LICENSE).
+- [Documentation index and supported modes](docs/README.md)
+- [Runnable examples in Python, TypeScript, Rust, HTTP, MCP and CI](examples/README.md)
+- [Repository structure and the purpose of each directory](docs/repository.md)
+- [Local development, tests and package builds](docs/development.md)
+- [Database migrations](docs/migrations.md)
+- [Current capabilities and remaining roadmap](docs/roadmap.md)
+- [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Apache-2.0 license](LICENSE)

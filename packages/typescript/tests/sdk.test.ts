@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { refract, pack, type Execution } from "../src/index.js";
-import { unzipSync } from "fflate";
+import { refract, pack, unpack, type Execution } from "../src/index.js";
+
 describe("recording", () => {
   it("isolates concurrent runs and redacts before capture", async () => {
     const runs: Execution[] = [];
@@ -27,11 +27,10 @@ describe("recording", () => {
     expect(runs.map((r) => r.events[0].name).sort()).toEqual(["a", "b"]);
     expect(runs[0].events[0].input).toEqual({ api_key: "[REDACTED]" });
     expect(pack(runs[0])).toEqual(pack(runs[0]));
-    expect(Object.keys(unzipSync(pack(runs[0])))).toEqual([
-      "manifest.json",
-      "execution.json",
-      "events.jsonl",
-    ]);
+    expect(unpack(pack(runs[0]))).toEqual(runs[0]);
+    const bad = Buffer.from(pack(runs[0]));
+    bad[bad.length - 2] = 33;
+    expect(() => unpack(bad)).toThrow("checksum mismatch");
     expect(() => refract.event({ type: "error", name: "outside" })).toThrow();
   });
   it("preserves application failures", async () => {

@@ -133,7 +133,7 @@ pub async fn serve() -> anyhow::Result<()> {
     let url = std::env::var("REFRACT_DATABASE_URL").unwrap_or("sqlite://refract.db".into());
     let address = std::env::var("REFRACT_BIND").unwrap_or("127.0.0.1:8000".into());
     let store = Store::open(&url).await?;
-    let ui = std::env::var("REFRACT_UI_DIR").unwrap_or("ui/dist".into());
+    let ui = std::env::var("REFRACT_UI_DIR").unwrap_or("apps/viewer/dist".into());
     let app = router(store).fallback_service(ServeDir::new(ui));
     let listener = tokio::net::TcpListener::bind(&address).await?;
     eprintln!("Refract listening on {address}");

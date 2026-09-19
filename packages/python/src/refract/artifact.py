@@ -1,28 +1,36 @@
-"""Portable v1 ZIP writer. Checksums cover bytes, not language-specific JSON ordering."""
+"""Readable, checksummed .rfr text artifacts. Rust also reads legacy ZIP recordings."""
 
 import hashlib
-import io
 import json
-import zipfile
+from typing import Any
+
+MAX_BYTES = 16 * 1024 * 1024
 
 
-def pack(run: dict) -> bytes:
-    execution = {**run, "events": []}
-    encode = lambda value: json.dumps(value, separators=(",", ":"), allow_nan=False).encode()
-    files = {
-        "execution.json": encode(execution),
-        "events.jsonl": b"".join(encode(e) + b"\n" for e in run["events"]),
-    }
-    if sum(map(len, files.values())) > 16 * 1024 * 1024:
+def pack(run: dict[str, Any]) -> bytes:
+    payload = (json.dumps(run, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode()
+    if len(payload) > MAX_BYTES:
         raise ValueError("artifact exceeds size limit")
-    manifest = {
-        "spec_version": "refract.execution.v1",
-        "files": {k: hashlib.sha256(v).hexdigest() for k, v in files.items()},
+    header = {
+        "format": "refract.artifact.v1",
+        "encoding": "json",
+        "sha256": hashlib.sha256(payload).hexdigest(),
     }
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
-        for name, body in {"manifest.json": encode(manifest), **files}.items():
-            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
-            info.external_attr = 0o100600 << 16
-            archive.writestr(info, body)
-    return output.getvalue()
+    return json.dumps(header, separators=(",", ":")).encode() + b"\n" + payload
+
+
+def unpack(data: bytes) -> dict[str, Any]:
+    if len(data) > MAX_BYTES + 4097:
+        raise ValueError("artifact exceeds size limit")
+    header_bytes, separator, payload = data.partition(b"\n")
+    if not separator or len(header_bytes) > 4096 or len(payload) > MAX_BYTES:
+        raise ValueError("invalid artifact size/header")
+    header = json.loads(header_bytes)
+    if header.get("format") != "refract.artifact.v1" or header.get("encoding") != "json":
+        raise ValueError("unsupported artifact profile; use the Rust CLI for legacy ZIP files")
+    if header.get("sha256") != hashlib.sha256(payload).hexdigest():
+        raise ValueError("checksum mismatch")
+    run = json.loads(payload)
+    if not isinstance(run, dict) or run.get("spec_version") != "refract.execution.v1":
+        raise ValueError("unsupported execution version")
+    return run

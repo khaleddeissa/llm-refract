@@ -16,8 +16,56 @@ struct Manifest {
 fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-/// Stable ZIP ordering, stored entries, fixed timestamps, checksums over exact bytes.
+/// Text profile: one JSON checksum header followed by a readable execution JSON document.
 pub fn pack(run: &Run) -> Result<Vec<u8>> {
+    run.validate()?;
+    let mut safe = run.clone();
+    safe.redact();
+    let mut payload = serde_json::to_vec_pretty(&safe)?;
+    payload.push(b'\n');
+    ensure!(
+        payload.len() as u64 <= MAX_BYTES,
+        "artifact exceeds size limit"
+    );
+    let header = serde_json::json!({"format":"refract.artifact.v1", "encoding":"json", "sha256":hash(&payload)});
+    let mut bytes = serde_json::to_vec(&header)?;
+    bytes.push(b'\n');
+    bytes.extend(payload);
+    Ok(bytes)
+}
+pub fn unpack(bytes: &[u8]) -> Result<Run> {
+    ensure!(
+        bytes.len() as u64 <= MAX_BYTES + 65536,
+        "artifact exceeds size limit"
+    );
+    if bytes.starts_with(b"PK") {
+        return unpack_zip(bytes);
+    }
+    let split = bytes
+        .iter()
+        .position(|b| *b == b'\n')
+        .ok_or_else(|| anyhow::anyhow!("missing artifact header"))?;
+    ensure!(split <= 4096, "header exceeds size limit");
+    let header: serde_json::Value = serde_json::from_slice(&bytes[..split])?;
+    ensure!(
+        header["format"] == "refract.artifact.v1" && header["encoding"] == "json",
+        "unsupported artifact profile"
+    );
+    let payload = &bytes[split + 1..];
+    ensure!(
+        payload.len() as u64 <= MAX_BYTES,
+        "payload exceeds size limit"
+    );
+    ensure!(
+        header["sha256"].as_str() == Some(hash(payload).as_str()),
+        "checksum mismatch"
+    );
+    let run: Run = serde_json::from_slice(payload)?;
+    run.validate()?;
+    Ok(run)
+}
+/// Stable ZIP ordering, stored entries, fixed timestamps, checksums over exact bytes.
+pub fn pack_zip(run: &Run) -> Result<Vec<u8>> {
     run.validate()?;
     let mut run = run.clone();
     run.redact();
@@ -54,7 +102,7 @@ pub fn pack(run: &Run) -> Result<Vec<u8>> {
     }
     Ok(zip.finish()?.into_inner())
 }
-pub fn unpack(bytes: &[u8]) -> Result<Run> {
+fn unpack_zip(bytes: &[u8]) -> Result<Run> {
     ensure!(
         bytes.len() as u64 <= MAX_BYTES + 65536,
         "archive exceeds size limit"

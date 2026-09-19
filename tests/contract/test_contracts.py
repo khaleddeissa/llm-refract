@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
 
-import refract
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
+
+import refract
 
 ROOT = Path(__file__).resolve().parents[2]
 

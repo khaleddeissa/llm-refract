@@ -13,13 +13,13 @@ __pycache__/
 .env
 .env.*
 !.env.example
-/example.rfr
-/typescript-example.rfr
 /test-results/
 /playwright-report/
-ui/test-results/
-ui/playwright-report/
 
 /*.rfr
 /refract-report.json
 /docs/architecture/product-vision.md
+
+/.examples/
+/apps/viewer/test-results/
+/apps/viewer/playwright-report/

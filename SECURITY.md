@@ -6,7 +6,7 @@ authorization, encrypted artifacts, retention and production rate limits are not
 Recording applies recursive key-based redaction for password, secret, token, API key, authorization,
 cookie and email keys. This is a baseline, not a PII detector: free text, event names and arbitrary values
 can contain secrets. Token-named usage fields may also be redacted. Review artifacts before sharing.
-Checksums are not digital signatures. Archive reads are bounded and never extract paths.
+Checksums are not digital signatures. Artifact reads are bounded; legacy archives never extract paths.
 
 Exact playback never executes tools. `BLOCKED` events reject playback. Other replay policies describe
 future executor capabilities; they never authorize live execution in this version. Forks only copy data.

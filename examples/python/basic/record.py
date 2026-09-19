@@ -1,6 +1,10 @@
+from pathlib import Path
+
 import refract
 
-with refract.run("customer-support", path="example.rfr"):
+Path(".examples").mkdir(exist_ok=True)
+
+with refract.run("customer-support", path=".examples/example.rfr"):
     lookup = refract.event(type="retrieval", name="Find policy", output={"return_days": 30})
     refract.event(
         type="generation",
@@ -10,4 +14,4 @@ with refract.run("customer-support", path="example.rfr"):
         output={"text": "Returns are accepted within 30 days."},
         attributes={"provider": "demo", "model": "recorded-example"},
     )
-print("Wrote example.rfr")
+print("Wrote .examples/example.rfr")

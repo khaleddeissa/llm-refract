@@ -1,9 +1,10 @@
 import asyncio
 import json
-import zipfile
 
 import pytest
+
 import refract
+from refract.artifact import unpack
 
 
 def test_recording_redacts_and_snapshots(tmp_path):
@@ -13,8 +14,7 @@ def test_recording_redacts_and_snapshots(tmp_path):
         refract.event(type="generation", name="answer", input=original, output="hello")
         original["count"] = 99
     assert run.data["status"] == "completed"
-    with zipfile.ZipFile(path) as archive:
-        event = json.loads(archive.read("events.jsonl"))
+    event = unpack(path.read_bytes())["events"][0]
     assert event["input"] == {"email": "[REDACTED]", "count": 1}
     with pytest.raises(FileExistsError):
         run.export(path)

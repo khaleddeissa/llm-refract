@@ -10,6 +10,6 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker compose build
       - run: docker compose up -d --wait
-      - run: python3 scripts/smoke-test.py
+      - run: python3 tests/integration/smoke.py
       - if: always()
         run: docker compose down

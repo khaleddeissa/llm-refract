@@ -1,13 +1,5 @@
-import importlib.util
-from pathlib import Path
-
 import refract
-
-spec = importlib.util.spec_from_file_location(
-    "manual", Path(__file__).parents[2] / "integrations/manual.py"
-)
-manual = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(manual)
+from refract.integrations import manual
 
 
 def test_provider_neutral_generation():

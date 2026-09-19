@@ -22,10 +22,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: make setup ci
+      - run: make setup ci test-contract
+      - run: cargo run -p refract-artifact --example inspect
       - run: uv run python examples/python/basic/record.py
       - run: node examples/typescript/basic/record.mjs
-      - run: cargo run -p refract-cli -- validate example.rfr
-      - run: cargo run -p refract-cli -- validate typescript-example.rfr
+      - run: cargo run -p refract-cli -- validate .examples/example.rfr
+      - run: cargo run -p refract-cli -- validate .examples/typescript-example.rfr
       - run: cargo run -p refract-cli -- pack tests/fixtures/simple-run/execution.json -o /tmp/rust-example.rfr
-      - run: node scripts/cross-language.mjs /tmp/rust-example.rfr
+      - run: node tests/contract/artifact.mjs /tmp/rust-example.rfr

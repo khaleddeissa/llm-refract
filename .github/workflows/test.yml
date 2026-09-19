@@ -13,9 +13,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
       - run: npm ci
+      - run: npm run build -w @refract-ai/sdk
       - run: npx playwright install --with-deps chromium
       - run: docker compose up --build -d --wait
-      - run: make test-integration test-e2e
+      - run: make test-integration test-interfaces test-e2e
       - if: always()
         run: docker compose logs && docker compose down

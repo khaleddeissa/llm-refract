@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://refract.dev/spec/execution/v1/event.schema.json",
+  "title": "Execution event",
+  "type": "object",
+  "required": [
+    "id",
+    "run_id",
+    "parent_id",
+    "type",
+    "name",
+    "timestamp",
+    "duration_ms",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_id": {
+      "type": ["string", "null"]
+    },
+    "type": {
+      "enum": [
+        "generation",
+        "tool.call",
+        "retrieval",
+        "decision",
+        "state.change",
+        "checkpoint",
+        "handoff",
+        "human",
+        "artifact",
+        "error"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "status": {
+      "enum": ["running", "completed", "failed"]
+    },
+    "input": {},
+    "output": {},
+    "attributes": {
+      "type": "object"
+    },
+    "replay_policy": {
+      "enum": [
+        "READ_ONLY",
+        "MOCK",
+        "RECORDED",
+        "LIVE",
+        "REQUIRES_APPROVAL",
+        "BLOCKED"
+      ]
+    }
+  }
+}
