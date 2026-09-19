@@ -1,0 +1,18 @@
+services:
+  refract:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - refract-data:/data
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+volumes:
+  refract-data:
