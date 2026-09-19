@@ -1,6 +1,6 @@
 .PHONY: setup install hooks lint format test test-python test-js test-rust test-integration test-e2e build build-cli build-sdk docker-build docker-up docker-down generate docs security ci
 setup install:
-	uv sync --locked
+	uv sync --locked --all-extras
 	npm ci
 hooks:
 	uv run pre-commit install --install-hooks
@@ -35,8 +35,8 @@ build:
 build-cli:
 	cargo build --release --locked -p refract-cli
 build-sdk:
-	uv build --package refract
-	npm run build -w @refract-ai/sdk
+	uv build --package llm-refract
+	npm run build -w @llm-refract/sdk
 docker-build:
 	docker compose build
 docker-up:

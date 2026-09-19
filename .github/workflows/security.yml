@@ -37,4 +37,4 @@ jobs:
         run: cargo install cargo-audit --locked
       - run: cargo audit
       - run: npm ci && npm audit --omit=dev
-      - run: uv sync --locked && uv run --with pip-audit pip-audit
+      - run: uv sync --locked --all-extras && uv run --with pip-audit pip-audit
