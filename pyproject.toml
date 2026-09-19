@@ -1,13 +1,12 @@
 [project]
 name = "refract-workspace"
-version = "0.1.1"
+version = "0.1.2"
 description = "Development workspace for the Refract execution engine and interfaces."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 dependencies = [
-    "refract",
-    "refract-mcp",
+    "llm-refract",
 ]
 
 [project.urls]
@@ -28,16 +27,14 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-members = ["packages/python", "packages/mcp"]
+members = ["packages/python"]
 
 [tool.uv.sources]
-refract = { workspace = true }
-refract-mcp = { workspace = true }
+llm-refract = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = [
     "packages/python/tests",
-    "packages/mcp/tests",
     "packages/github-action/tests",
     "tests/contract",
 ]
@@ -60,7 +57,7 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["packages/python/src", "packages/mcp/src"]
+files = ["packages/python/src"]
 check_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true

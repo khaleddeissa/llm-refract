@@ -1,6 +1,7 @@
 {
-  "name": "@refract-ai/sdk",
-  "version": "0.1.1",
+  "name": "@llm-refract/sdk",
+  "version": "0.1.2",
+  "description": "Node.js SDK for Refract — provider-neutral instrumentation and portable execution artifacts for AI systems.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,5 +27,13 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
-  }
+  },
+  "keywords": [
+    "llm",
+    "observability",
+    "replay",
+    "execution",
+    "agent",
+    "tracing"
+  ]
 }

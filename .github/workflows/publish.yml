@@ -73,8 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv build --package refract --out-dir dist
-      - run: uv build --package refract-mcp --out-dir dist
+      - run: uv build --package llm-refract --out-dir dist
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
