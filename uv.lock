@@ -1009,7 +1009,7 @@ name = "refract-workspace"
 version = "0.1.2"
 source = { virtual = "." }
 dependencies = [
-    { name = "llm-refract" },
+    { name = "llm-refract", extra = ["mcp"] },
 ]
 
 [package.dev-dependencies]
@@ -1022,7 +1022,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "llm-refract", editable = "packages/python" }]
+requires-dist = [{ name = "llm-refract", extras = ["mcp"], editable = "packages/python" }]
 
 [package.metadata.requires-dev]
 dev = [
