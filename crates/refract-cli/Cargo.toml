@@ -1,0 +1,23 @@
+[package]
+name = "refract-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+refract-core = { path = "../refract-core" }
+refract-artifact = { path = "../refract-artifact" }
+refract-replay = { path = "../refract-replay" }
+refract-diff = { path = "../refract-diff" }
+refract-server = { path = "../refract-server" }
+serde_json.workspace = true
+clap.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+
+[[bin]]
+name = "refract"
+path = "src/main.rs"

@@ -1,0 +1,27 @@
+{
+  "name": "llm-refract",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/typescript",
+    "ui"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.0",
+    "@types/node": "^24.0.0",
+    "prettier": "^3.6.0",
+    "@commitlint/cli": "^20.0.0",
+    "@commitlint/config-conventional": "^20.0.0"
+  }
+}

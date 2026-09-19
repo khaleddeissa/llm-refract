@@ -1,0 +1,25 @@
+[package]
+name = "refract-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+refract-core = { path = "../refract-core" }
+refract-artifact = { path = "../refract-artifact" }
+refract-replay = { path = "../refract-replay" }
+refract-diff = { path = "../refract-diff" }
+refract-storage = { path = "../refract-storage" }
+refract-collector = { path = "../refract-collector" }
+serde.workspace = true
+serde_json.workspace = true
+axum.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tower-http.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
