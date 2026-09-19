@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "workspaces": [
     "packages/typescript",
-    "ui"
+    "apps/viewer"
   ],
   "engines": {
     "node": ">=22.12"

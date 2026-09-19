@@ -2,9 +2,12 @@ name: Documentation
 on: [pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/check-docs.py
+      - run: python3 tools/dev/check-docs.py

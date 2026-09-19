@@ -1,0 +1,49 @@
+{"format":"refract.artifact.v1","encoding":"json","sha256":"27a668368a937f79021d72779ead46ade59091e35d84774ffda33eb618c3ac74"}
+{
+  "spec_version": "refract.execution.v1",
+  "id": "run_2f73e96a-9652-48c9-a589-8a7ebe646d79",
+  "name": "customer-support",
+  "status": "completed",
+  "started_at": "2026-09-19T13:54:03.488042+00:00",
+  "ended_at": "2026-09-19T13:54:03.488666+00:00",
+  "metadata": {},
+  "events": [
+    {
+      "id": "evt_df4c5345-6989-48e1-b738-c4fdc47c7ffb",
+      "run_id": "run_2f73e96a-9652-48c9-a589-8a7ebe646d79",
+      "parent_id": null,
+      "type": "retrieval",
+      "name": "Find policy",
+      "timestamp": "2026-09-19T13:54:03.488250+00:00",
+      "duration_ms": 0,
+      "status": "completed",
+      "input": null,
+      "output": {
+        "return_days": 30
+      },
+      "attributes": {},
+      "replay_policy": "RECORDED"
+    },
+    {
+      "id": "evt_3b21aab3-a503-46e9-a14e-4834d1efdb6f",
+      "run_id": "run_2f73e96a-9652-48c9-a589-8a7ebe646d79",
+      "parent_id": "evt_df4c5345-6989-48e1-b738-c4fdc47c7ffb",
+      "type": "generation",
+      "name": "Draft answer",
+      "timestamp": "2026-09-19T13:54:03.488496+00:00",
+      "duration_ms": 0,
+      "status": "completed",
+      "input": {
+        "prompt": "What is the return policy?"
+      },
+      "output": {
+        "text": "Returns are accepted within 30 days."
+      },
+      "attributes": {
+        "provider": "demo",
+        "model": "recorded-example"
+      },
+      "replay_policy": "RECORDED"
+    }
+  ]
+}

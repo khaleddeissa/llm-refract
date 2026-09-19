@@ -10,6 +10,7 @@ lint:
 	cargo clippy --workspace --all-targets -- -D warnings
 	uv run ruff check .
 	uv run ruff format --check .
+	uv run mypy
 	npm run typecheck
 	npm run format:check
 format:
@@ -25,9 +26,9 @@ test-js:
 test-rust:
 	cargo test --workspace --locked
 test-integration:
-	python3 scripts/smoke-test.py
+	python3 tests/integration/smoke.py
 test-e2e:
-	npx playwright test -c ui/playwright.config.ts
+	npx playwright test -c apps/viewer/playwright.config.ts
 build:
 	cargo build --workspace --locked
 	npm run build
@@ -43,10 +44,24 @@ docker-up:
 docker-down:
 	docker compose down
 generate:
-	uv run python scripts/check-contracts.py
+	uv run python tools/dev/check-contracts.py
 docs:
-	python3 scripts/check-docs.py
+	python3 tools/dev/check-docs.py
 security:
 	cargo audit
 	npm audit --omit=dev
 ci: lint test build generate docs
+
+typecheck-python:
+	uv run mypy
+migrate-info:
+	cargo sqlx migrate info --source crates/refract-storage/migrations
+migrate-add:
+	cargo sqlx migrate add --source crates/refract-storage/migrations $(name)
+
+test-contract:
+	uv run python tests/contract/run.py
+
+test-interfaces:
+	uv run python tests/integration/interfaces.py
+	node tests/integration/sdk.mjs

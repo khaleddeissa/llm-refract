@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+await mkdir(".examples", { recursive: true });
 import { refract } from "../../../packages/typescript/dist/index.js";
 await refract.run(
   "customer-support",
@@ -9,5 +11,5 @@ await refract.run(
       attributes: { provider: "demo" },
     });
   },
-  { path: "typescript-example.rfr" },
+  { path: ".examples/typescript-example.rfr" },
 );

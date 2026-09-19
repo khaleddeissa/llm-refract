@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://refract.dev/spec/execution/v1/execution.schema.json",
+  "title": "Canonical execution",
+  "type": "object",
+  "required": [
+    "spec_version",
+    "id",
+    "name",
+    "status",
+    "started_at",
+    "ended_at",
+    "events"
+  ],
+  "properties": {
+    "spec_version": {
+      "const": "refract.execution.v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "status": {
+      "enum": ["running", "completed", "failed"]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "event.schema.json"
+      }
+    }
+  }
+}

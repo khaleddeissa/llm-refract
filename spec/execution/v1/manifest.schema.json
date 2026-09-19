@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Refract artifact manifest",
+  "type": "object",
+  "required": ["spec_version", "files"],
+  "properties": {
+    "spec_version": {
+      "const": "refract.execution.v1"
+    },
+    "files": {
+      "type": "object",
+      "required": ["execution.json", "events.jsonl"],
+      "additionalProperties": false,
+      "properties": {
+        "execution.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "events.jsonl": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

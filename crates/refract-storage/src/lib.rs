@@ -16,7 +16,7 @@ impl Store {
             .max_connections(1)
             .connect_with(options)
             .await?;
-        sqlx::migrate!("../../migrations").run(&pool).await?;
+        sqlx::migrate!("./migrations").run(&pool).await?;
         Ok(Self { pool })
     }
     pub async fn ready(&self) -> Result<()> {
@@ -50,5 +50,30 @@ impl Store {
         rows.into_iter()
             .map(|r| serde_json::from_str(&r.0).map_err(Into::into))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn migrations_are_repeatable_and_preserve_data() {
+        let path = std::env::temp_dir().join(refract_core::id("refract-db"));
+        let url = format!("sqlite://{}", path.display());
+        let first = Store::open(&url).await.unwrap();
+        let run = Run::new("migration-test");
+        assert!(first.insert(&run).await.unwrap());
+        first.pool.close().await;
+        let reopened = Store::open(&url).await.unwrap();
+        assert_eq!(reopened.get(&run.id).await.unwrap().unwrap(), run);
+        assert!(!reopened.insert(&run).await.unwrap());
+        let versions: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM _sqlx_migrations WHERE success = 1")
+                .fetch_one(&reopened.pool)
+                .await
+                .unwrap();
+        assert_eq!(versions.0, 1);
+        reopened.pool.close().await;
+        std::fs::remove_file(path).unwrap();
     }
 }

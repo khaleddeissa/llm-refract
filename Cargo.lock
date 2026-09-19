@@ -1294,13 +1294,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "refract-protocol"
-version = "0.1.0"
-dependencies = [
- "refract-core",
-]
-
-[[package]]
 name = "refract-replay"
 version = "0.1.0"
 dependencies = [
@@ -1337,6 +1330,7 @@ dependencies = [
  "refract-core",
  "serde_json",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]

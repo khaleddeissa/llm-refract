@@ -1,0 +1,4 @@
+[advisories]
+# RUSTSEC-2023-0071 (Marvin Attack, rsa crate) has no fixed upgrade available.
+# We don't use sqlx's mysql feature — this only reaches us transitively.
+ignore = ["RUSTSEC-2023-0071"]

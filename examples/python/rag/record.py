@@ -1,8 +1,12 @@
 """Run with uv run python examples/python/rag/record.py."""
 
+from pathlib import Path
+
 import refract
 
-with refract.run("policy-rag", path="rag.rfr", metadata={"environment": "example"}):
+Path(".examples").mkdir(exist_ok=True)
+
+with refract.run("policy-rag", path=".examples/rag.rfr", metadata={"environment": "example"}):
     retrieved = refract.event(
         type="retrieval",
         name="Search policy",
@@ -16,4 +20,4 @@ with refract.run("policy-rag", path="rag.rfr", metadata={"environment": "example
         output={"answer": "You have 30 days.", "citations": ["returns-v1"]},
         attributes={"provider": "demo", "model": "recorded"},
     )
-print("Wrote rag.rfr")
+print("Wrote .examples/rag.rfr")

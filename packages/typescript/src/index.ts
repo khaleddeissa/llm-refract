@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
-import { zipSync } from "fflate";
 export type Json =
   null | boolean | number | string | Json[] | { [key: string]: Json };
 export type EventType =
@@ -91,30 +90,40 @@ export function event(input: EventInput): string {
   state.execution.events.push(e);
   return e.id;
 }
+/** UTF-8 checksum header + formatted execution JSON. */
 export function pack(execution: Execution): Uint8Array {
-  const encode = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
   const safe = redact(execution as unknown as Json) as unknown as Execution;
-  const files: Record<string, Uint8Array> = {
-    "execution.json": encode({ ...safe, events: [] }),
-    "events.jsonl": new TextEncoder().encode(
-      safe.events.map((e) => JSON.stringify(e) + "\n").join(""),
-    ),
-  };
-  if (Object.values(files).reduce((n, b) => n + b.length, 0) > 16 * 1024 * 1024)
+  const payload = Buffer.from(JSON.stringify(safe, null, 2) + "\n");
+  if (payload.length > 16 * 1024 * 1024)
     throw new Error("artifact exceeds size limit");
-  const manifest = {
-    spec_version: execution.spec_version,
-    files: Object.fromEntries(
-      Object.entries(files).map(([n, b]) => [
-        n,
-        createHash("sha256").update(b).digest("hex"),
-      ]),
-    ),
+  const header = {
+    format: "refract.artifact.v1",
+    encoding: "json",
+    sha256: createHash("sha256").update(payload).digest("hex"),
   };
-  return zipSync(
-    { "manifest.json": encode(manifest), ...files },
-    { level: 0, mtime: new Date(1980, 0, 1) },
-  );
+  return Buffer.concat([Buffer.from(JSON.stringify(header) + "\n"), payload]);
+}
+export function unpack(bytes: Uint8Array): Execution {
+  const data = Buffer.from(bytes);
+  if (data.length > 16 * 1024 * 1024 + 4097)
+    throw new Error("artifact exceeds size limit");
+  const split = data.indexOf(10);
+  if (split < 0 || split > 4096) throw new Error("invalid artifact header");
+  const header = JSON.parse(data.subarray(0, split).toString("utf8"));
+  const payload = data.subarray(split + 1);
+  if (payload.length > 16 * 1024 * 1024)
+    throw new Error("payload exceeds size limit");
+  if (header.format !== "refract.artifact.v1" || header.encoding !== "json")
+    throw new Error("unsupported profile; use Rust CLI for legacy ZIP");
+  if (createHash("sha256").update(payload).digest("hex") !== header.sha256)
+    throw new Error("checksum mismatch");
+  const run = JSON.parse(payload.toString("utf8"));
+  if (
+    run?.spec_version !== "refract.execution.v1" ||
+    !Array.isArray(run.events)
+  )
+    throw new Error("invalid execution");
+  return run as Execution;
 }
 export async function run<T>(
   name: string,

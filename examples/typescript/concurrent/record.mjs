@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+await mkdir(".examples", { recursive: true });
 import { refract } from "../../../packages/typescript/dist/index.js";
 await Promise.all(
   ["alpha", "beta"].map((name) =>
@@ -12,7 +14,7 @@ await Promise.all(
           output: { team: name },
         });
       },
-      { path: `${name}.rfr` },
+      { path: `.examples/${name}.rfr` },
     ),
   ),
 );

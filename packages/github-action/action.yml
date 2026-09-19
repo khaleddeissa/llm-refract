@@ -1,0 +1,23 @@
+name: Refract execution regression
+description: Compare a freshly recorded execution against a checked-in baseline
+inputs:
+  baseline:
+    description: Baseline .rfr or canonical JSON path
+    required: true
+  actual:
+    description: Newly recorded .rfr or canonical JSON path
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@1.94.0
+    - shell: bash
+      env:
+        REFRACT_SOURCE: ${{ github.action_path }}/../..
+      run: cargo build --locked --release --manifest-path "$REFRACT_SOURCE/Cargo.toml" -p refract-cli
+    - shell: bash
+      env:
+        REFRACT_SOURCE: ${{ github.action_path }}/../..
+        REFRACT_BASELINE: ${{ inputs.baseline }}
+        REFRACT_ACTUAL: ${{ inputs.actual }}
+      run: python3 "$REFRACT_SOURCE/packages/github-action/compare.py" "$REFRACT_BASELINE" "$REFRACT_ACTUAL" --cli "$REFRACT_SOURCE/target/release/refract"

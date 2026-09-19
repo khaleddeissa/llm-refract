@@ -1,0 +1,54 @@
+{"format":"refract.artifact.v1","encoding":"json","sha256":"aa326105945fcf6fa6d0192178df4bff9fb4b59e12ad39a6b86ae7628e652d73"}
+{
+  "spec_version": "refract.execution.v1",
+  "id": "demo-1",
+  "name": "customer-support",
+  "status": "completed",
+  "started_at": "2026-01-01T00:00:00Z",
+  "ended_at": "2026-01-01T00:00:01Z",
+  "metadata": {
+    "service": "support-agent",
+    "environment": "development"
+  },
+  "events": [
+    {
+      "id": "evt_1",
+      "run_id": "demo-1",
+      "parent_id": null,
+      "type": "retrieval",
+      "name": "Find return policy",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "duration_ms": 125,
+      "status": "completed",
+      "input": {
+        "query": "return window"
+      },
+      "output": {
+        "days": 30
+      },
+      "attributes": {},
+      "replay_policy": "RECORDED"
+    },
+    {
+      "id": "evt_2",
+      "run_id": "demo-1",
+      "parent_id": "evt_1",
+      "type": "generation",
+      "name": "Draft answer",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "duration_ms": 750,
+      "status": "completed",
+      "input": {
+        "prompt": "Summarize the return policy."
+      },
+      "output": {
+        "text": "You can return your order within 30 days."
+      },
+      "attributes": {
+        "provider": "demo",
+        "model": "recorded-example"
+      },
+      "replay_policy": "RECORDED"
+    }
+  ]
+}

@@ -2,16 +2,49 @@ version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 5
+    groups:
+      cargo-patch-minor:
+        update-types: ["patch", "minor"]
+      cargo-major:
+        update-types: ["major"]
+
   - package-ecosystem: npm
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 5
+    groups:
+      npm-dev-dependencies:
+        dependency-type: "development"
+        update-types: ["patch", "minor"]
+      npm-production-dependencies:
+        dependency-type: "production"
+        update-types: ["patch", "minor"]
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: uv
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "mcp"
+        versions: [">=2.0.0"]
+
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+
   - package-ecosystem: docker
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]

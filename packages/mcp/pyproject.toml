@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "refract-mcp"
+version = "0.1.0"
+description = "MCP tools for inspecting and operating the Refract execution engine."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["ai", "execution", "replay", "observability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = ["mcp>=1.26,<2"]
+
+[project.urls]
+Repository = "https://github.com/khaleddeissa/llm-refract"
+Documentation = "https://github.com/khaleddeissa/llm-refract/tree/main/docs"
+Issues = "https://github.com/khaleddeissa/llm-refract/issues"
+
+[project.scripts]
+refract-mcp = "refract_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/refract_mcp"]

@@ -12,3 +12,6 @@ refract-core = { path = "../refract-core" }
 serde_json.workspace = true
 sqlx.workspace = true
 anyhow.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

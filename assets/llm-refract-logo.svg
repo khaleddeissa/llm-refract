@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Refract diamond</title>
+  <desc id="desc">The inspector's mint green diamond: an open diamond surrounding a smaller solid diamond.</desc>
+  <path fill="#93e6c4" fill-rule="evenodd" d="M64 8 120 64 64 120 8 64ZM64 20 20 64 64 108 108 64Z"/>
+  <path fill="#93e6c4" d="M64 36 92 64 64 92 36 64Z"/>
+</svg>

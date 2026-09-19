@@ -2,7 +2,10 @@ name: Build release candidate
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents:
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   validate:
     uses: ./.github/workflows/ci.yml
