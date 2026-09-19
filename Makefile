@@ -35,8 +35,8 @@ build:
 build-cli:
 	cargo build --release --locked -p refract-cli
 build-sdk:
-	uv build --package refract
-	npm run build -w @refract-ai/sdk
+	uv build --package llm-refract
+	npm run build -w @llm-refract/sdk
 docker-build:
 	docker compose build
 docker-up:

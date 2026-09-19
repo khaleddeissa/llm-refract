@@ -59,8 +59,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: npm install -g npm@latest
       - run: npm ci
-      - run: npm run build -w @refract-ai/sdk
-      - run: npm publish -w @refract-ai/sdk --provenance --access public
+      - run: npm run build -w @llm-refract/sdk
+      - run: npm publish -w @llm-refract/sdk --provenance --access public
 
   pypi:
     needs: validate
@@ -73,8 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv build --package refract --out-dir dist
-      - run: uv build --package refract-mcp --out-dir dist
+      - run: uv build --package llm-refract --out-dir dist
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist

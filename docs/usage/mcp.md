@@ -1,7 +1,6 @@
 # MCP agent mode
 
-`refract-mcp` is a stdio service built with the official MCP Python SDK. It calls the Rust API; it does
-not duplicate the execution engine or run model/tool code. Install from [source](../development.md).
+`refract-mcp` (installed via `pip install "llm-refract[mcp]"`) is a stdio service built with the official MCP Python SDK. It calls the Rust API; it does not duplicate the execution engine or run model/tool code. Install from [source](../development.md).
 
 ```json
 {

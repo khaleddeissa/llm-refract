@@ -1,4 +1,4 @@
-# @refract-ai/sdk
+# @llm-refract/sdk
 
 Node.js SDK for Refract — a portable execution recording, replay and diff engine for AI systems.
 Targets server-side Node.js apps and agents (uses `AsyncLocalStorage`, filesystem and crypto APIs;
@@ -7,13 +7,13 @@ not a browser SDK).
 ## Install
 
 ```bash
-npm install @refract-ai/sdk
+npm install @llm-refract/sdk
 ```
 
 ## Usage
 
 ```typescript
-import { refract, unpack } from "@refract-ai/sdk";
+import { refract, unpack } from "@llm-refract/sdk";
 import { readFile } from "node:fs/promises";
 
 const answer = await refract.run(

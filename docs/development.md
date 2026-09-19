@@ -1,6 +1,6 @@
 # Local development and installation
 
-`refract` (PyPI), `@refract-ai/sdk` (npm) and `ghcr.io/khaleddeissa/llm-refract` (container images) are
+`llm-refract` (PyPI), `@llm-refract/sdk` (npm) and `ghcr.io/khaleddeissa/llm-refract` (container images) are
 published on tagged releases. This page covers building from a source checkout instead, which is only
 necessary for contributing to the project itself.
 
@@ -18,13 +18,12 @@ make generate docs
 ```
 
 `uv sync --locked` installs both Python packages and development tools for local contribution work.
-To use the published packages in another project instead, use `uv tool install refract` / `pip install refract` /
-`pip install refract-mcp` or `npm install @refract-ai/sdk`.
+To use the published packages in another project instead, use `uv tool install llm-refract` / `pip install llm-refract` / `pip install "llm-refract[mcp]"` or `npm install @llm-refract/sdk`.
 
 ```bash
 cargo run -p refract-cli -- serve
 # In another terminal; Vite proxies /v1 to the server:
-npm run dev -w @refract-ai/viewer
+npm run dev -w @llm-refract/viewer
 # Alternatively, build the combined server/viewer image:
 docker compose up --build -d --wait
 ```
@@ -61,8 +60,7 @@ Lockfiles pin the tested environment while manifests express supported dependenc
 
 ```bash
 uv build --package refract
-uv build --package refract-mcp
-npm pack -w @refract-ai/sdk
+npm pack -w @llm-refract/sdk
 cargo build --release -p refract-cli -p refract-server
 docker build -t llm-refract:local .
 ```

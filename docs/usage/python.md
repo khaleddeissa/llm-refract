@@ -1,8 +1,8 @@
 # Python application mode
 
 The Python SDK records manual events, isolates concurrent runs with context variables, redacts
-sensitive keys and writes artifacts or posts completed snapshots to the Rust API. It has no model-provider
-dependency. Install with `uv tool install refract` or `pip install refract`; see [installation](../development.md) to build from source instead.
+sensitive keys and writes artifacts or posts completed snapshots to the Rust API. It has no model-provider dependency. Install with `uv tool install llm-refract` or `pip install llm-refract`; see
+[installation](../development.md) to build from source instead.
 
 ```python
 import refract

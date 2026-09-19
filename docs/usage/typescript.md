@@ -2,10 +2,10 @@
 
 `@refract-ai/sdk` targets Node.js, including server-side web applications and agents. It uses Node
 `AsyncLocalStorage`, filesystem and crypto APIs; it is not a browser SDK. Install with
-`npm install @refract-ai/sdk`; see [installation](../development.md) to build from source instead.
+`npm install @llm-refract/sdk`; see [installation](../development.md) to build from source instead.
 
 ```typescript
-import { refract, unpack } from "@refract-ai/sdk";
+import { refract, unpack } from "@llm-refract/sdk";
 import { readFile } from "node:fs/promises";
 
 const answer = await refract.run(

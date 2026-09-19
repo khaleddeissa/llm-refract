@@ -42,13 +42,13 @@ jobs:
           enable-cache: true
 
       - if: steps.changes.outputs.relevant == 'true'
-        run: uv sync --locked
+        run: uv sync --locked --all-extras
 
       - if: steps.changes.outputs.relevant == 'true'
         run: npm ci
 
       - if: steps.changes.outputs.relevant == 'true'
-        run: npm run build -w @refract-ai/sdk
+        run: npm run build -w @llm-refract/sdk
 
       - if: steps.changes.outputs.relevant == 'true'
         name: Cache Playwright browsers

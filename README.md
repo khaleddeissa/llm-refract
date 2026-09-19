@@ -14,11 +14,11 @@ Record executions as portable artifacts. Inspect every step. Replay captured out
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Rust](https://img.shields.io/badge/Rust-2024-000000?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-SDK-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](packages/typescript)
-[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-MCP-000000?style=for-the-badge)](packages/mcp)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-MCP-000000?style=for-the-badge)](packages/python/src/refract_mcp)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](docker-compose.yml)
 [![License](https://img.shields.io/badge/License-Apache--2.0-0D75B8?style=for-the-badge)](LICENSE)
 
-[Usage modes](#one-engine-many-interfaces) · [Examples](examples) · [API](docs/api.md) · [MCP](packages/mcp) · [Contributing](CONTRIBUTING.md)
+[Usage modes](#one-engine-many-interfaces) · [Examples](examples) · [API](docs/api.md) · [MCP](packages/python/src/refract_mcp) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -79,7 +79,7 @@ with refract.run("support-agent", path="support.rfr", endpoint="http://localhost
 **TypeScript / Node**
 
 ```typescript
-import { refract } from "@refract-ai/sdk";
+import { refract } from "@llm-refract/sdk";
 
 await refract.run(
   "support-agent",
@@ -98,9 +98,9 @@ await refract.run(
 automatic instrumentation for every provider is not implied.
 
 ```bash
-pip install refract
+pip install llm-refract
 uv tool install refract
-npm install @refract-ai/sdk
+npm install @llm-refract/sdk
 docker pull ghcr.io/khaleddeissa/llm-refract:latest
 ```
 
