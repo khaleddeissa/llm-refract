@@ -993,12 +993,12 @@ wheels = [
 
 [[package]]
 name = "refract"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/python" }
 
 [[package]]
 name = "refract-mcp"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/mcp" }
 dependencies = [
     { name = "mcp" },
@@ -1009,7 +1009,7 @@ requires-dist = [{ name = "mcp", specifier = ">=1.26,<2" }]
 
 [[package]]
 name = "refract-workspace"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "refract" },

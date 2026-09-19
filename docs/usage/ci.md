@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Run your instrumented application/tests here to produce .examples/actual.rfr.
-      - uses: ./packages/github-action
+      - uses: ./
         with:
           baseline: examples/artifacts/demo.rfr
           actual: .examples/actual.rfr
@@ -22,11 +22,12 @@ That relative Action path applies inside this repository. In another repository,
 release instead:
 
 ```yaml
-- uses: khaleddeissa/llm-refract/packages/github-action@v0.1.0
+- uses: khaleddeissa/llm-refract@v0.1.1
 ```
 
-This Action lives in a monorepo rather than its own repository, so it is not currently listed on the
-GitHub Marketplace — referencing it by tag works identically either way.
+The action metadata lives at the repo root. This repository also contains CI workflows, which the
+GitHub Marketplace listing requirements disallow — so it is not listed there, but referencing it by
+tag works identically either way.
 
 The composite Action builds the Rust CLI, validates both inputs and writes `refract-report.json`.
 Differences or invalid artifacts fail the step. The report records event-level differences; thresholds,

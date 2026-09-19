@@ -16,11 +16,11 @@ runs:
     - uses: dtolnay/rust-toolchain@1.94.0
     - shell: bash
       env:
-        REFRACT_SOURCE: ${{ github.action_path }}/../..
+        REFRACT_SOURCE: ${{ github.action_path }}
       run: cargo build --locked --release --manifest-path "$REFRACT_SOURCE/Cargo.toml" -p refract-cli
     - shell: bash
       env:
-        REFRACT_SOURCE: ${{ github.action_path }}/../..
+        REFRACT_SOURCE: ${{ github.action_path }}
         REFRACT_BASELINE: ${{ inputs.baseline }}
         REFRACT_ACTUAL: ${{ inputs.actual }}
       run: python3 "$REFRACT_SOURCE/packages/github-action/compare.py" "$REFRACT_BASELINE" "$REFRACT_ACTUAL" --cli "$REFRACT_SOURCE/target/release/refract"
