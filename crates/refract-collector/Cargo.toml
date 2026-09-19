@@ -1,0 +1,13 @@
+[package]
+name = "refract-collector"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+refract-core = { path = "../refract-core" }
+serde_json.workspace = true
+anyhow.workspace = true

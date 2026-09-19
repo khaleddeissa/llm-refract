@@ -1,0 +1,14 @@
+[package]
+name = "refract-storage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+refract-core = { path = "../refract-core" }
+serde_json.workspace = true
+sqlx.workspace = true
+anyhow.workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "refract-diff"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+refract-core = { path = "../refract-core" }
+serde.workspace = true
+serde_json.workspace = true
