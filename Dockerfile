@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS ui
+FROM node:25-bookworm-slim AS ui
 WORKDIR /build
 COPY package.json package-lock.json tsconfig.json ./
 COPY packages/typescript packages/typescript
