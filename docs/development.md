@@ -1,7 +1,8 @@
 # Local development and installation
 
-Registry packages and public container images have not been published yet. Commands below consume
-this repository directly; the README's API examples use these locally installed packages.
+`refract` (PyPI), `@refract-ai/sdk` (npm) and `ghcr.io/khaleddeissa/llm-refract` (container images) are
+published on tagged releases. This page covers building from a source checkout instead, which is only
+necessary for contributing to the project itself.
 
 Requirements: Rust 1.94 (edition 2024), Python 3.11+ (`.python-version` selects 3.12 for workspace work),
 `uv`, Node.js 22.12+ (24 recommended), npm, and Docker for container tests.
@@ -16,10 +17,9 @@ make lint
 make generate docs
 ```
 
-`uv sync --locked` installs both Python packages and development tools. To install only a package in
-another environment, use `uv pip install ./packages/python` or `uv pip install ./packages/mcp`.
-Build npm output with `npm run build -w @refract-ai/sdk`; `npm pack -w @refract-ai/sdk` creates a tarball
-for installation in another Node application. Package names remain unpublished.
+`uv sync --locked` installs both Python packages and development tools for local contribution work.
+To use the published packages in another project instead, use `uv tool install refract` / `pip install refract` /
+`pip install refract-mcp` or `npm install @refract-ai/sdk`.
 
 ```bash
 cargo run -p refract-cli -- serve

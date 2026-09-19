@@ -2,12 +2,11 @@
 
 The combined image contains the Rust server, CLI and built React viewer. It uses SQLite on `/data`,
 runs as a non-root user, and exposes readiness at `/v1/ready`. It does not contain an inference model.
-No public image has been published yet; build it as described in [development](../development.md).
 
 ```bash
+docker run --rm -p 127.0.0.1:8000:8000 -v refract-data:/data ghcr.io/khaleddeissa/llm-refract:latest
+# Or, from a source checkout:
 docker compose up --build -d --wait
-# Or, using an image you built:
-docker run --rm -p 127.0.0.1:8000:8000 -v refract-data:/data llm-refract:local
 ```
 
 Compose automatically discovers the root [`docker-compose.yml`](../../docker-compose.yml).

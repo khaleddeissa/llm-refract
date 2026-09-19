@@ -1,7 +1,8 @@
 # TypeScript / npm application mode
 
 `@refract-ai/sdk` targets Node.js, including server-side web applications and agents. It uses Node
-`AsyncLocalStorage`, filesystem and crypto APIs; it is not a browser SDK. See [installation](../development.md).
+`AsyncLocalStorage`, filesystem and crypto APIs; it is not a browser SDK. Install with
+`npm install @refract-ai/sdk`; see [installation](../development.md) to build from source instead.
 
 ```typescript
 import { refract, unpack } from "@refract-ai/sdk";
