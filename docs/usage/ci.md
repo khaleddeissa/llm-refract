@@ -22,7 +22,7 @@ That relative Action path applies inside this repository. In another repository,
 release instead:
 
 ```yaml
-- uses: khaleddeissa/llm-refract@v0.1.0
+- uses: khaleddeissa/llm-refract@v0.1.1
 ```
 
 The action metadata lives at the repo root. This repository also contains CI workflows, which the
