@@ -6,7 +6,7 @@ COPY apps/viewer apps/viewer
 COPY tests/fixtures tests/fixtures
 RUN npm ci && npm run build
 
-FROM rust:1.94-bookworm AS rust
+FROM rust:1.97-bookworm AS rust
 WORKDIR /build
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates crates
