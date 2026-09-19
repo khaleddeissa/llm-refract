@@ -1,12 +1,26 @@
 name: Docker and browser tests
 on:
   pull_request:
+    paths:
+      - "apps/**"
+      - "crates/**"
+      - "packages/**"
+      - "tests/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/test.yml"
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,9 +28,16 @@ jobs:
           node-version: 24
           cache: npm
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - run: uv sync --locked
       - run: npm ci
       - run: npm run build -w @refract-ai/sdk
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npx playwright install --with-deps chromium
       - run: docker compose up --build -d --wait
       - run: make test-integration test-interfaces test-e2e

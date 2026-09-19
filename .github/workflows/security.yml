@@ -1,22 +1,40 @@
 name: Security
 on:
   pull_request:
+    paths-ignore: ["**.md", "docs/**"]
   push:
     branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   dependencies:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - uses: dtolnay/rust-toolchain@1.94.0
-      - run: cargo install cargo-audit --locked
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache cargo-audit binary
+        id: cargo-audit-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-v0.21
+      - name: Install cargo-audit
+        if: steps.cargo-audit-cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --locked
       - run: cargo audit
       - run: npm ci && npm audit --omit=dev
       - run: uv sync --locked && uv run --with pip-audit pip-audit
