@@ -92,22 +92,3 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: target/release/refract
-
-  publish-action:
-    needs: validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Push action subtree to marketplace repo
-        env:
-          ACTION_REPO_TOKEN: ${{ secrets.ACTION_REPO_TOKEN }}
-        run: |
-          git config user.name "refract-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git subtree split --prefix=packages/github-action -b action-release
-          git push "https://x-access-token:${ACTION_REPO_TOKEN}@github.com/khaleddeissa/refract-action.git" action-release:main --force
