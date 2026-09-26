@@ -4,8 +4,22 @@ import type {
   Execution,
   ExecutionEvent,
 } from "../../../packages/typescript/src/index.js";
-import { request } from "./api";
+import { request, setApiKey, download } from "./api";
+import { ExecutionGraph } from "./graph";
+import { metrics, number, difference } from "./metrics";
 import "./style.css";
+interface SemanticReport {
+  passed: boolean;
+  equivalent: number;
+  changed: number;
+  differences: {
+    index: number;
+    category: string;
+    reason: string;
+    grade?: { score: number; grader: string; reason: string } | null;
+  }[];
+  budget_violations: string[];
+}
 function App() {
   const [runs, setRuns] = useState<Execution[]>([]);
   const [run, setRun] = useState<Execution>();
@@ -15,19 +29,53 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [compareId, setCompareId] = useState("");
+  const [semantic, setSemantic] = useState(true);
+  const semanticResult =
+    result && typeof result === "object" && "semantic_report" in result
+      ? (result.semantic_report as SemanticReport | undefined)
+      : undefined;
+  const [credential, setCredential] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [filters, setFilters] = useState({
+    q: "",
+    status: "",
+    model: "",
+    tool: "",
+    min_duration_ms: "",
+  });
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  const summary = run ? metrics(run) : undefined;
+  const compare = runs.find((item) => item.id === compareId);
+  const candidate = compare ? metrics(compare) : undefined;
   const choose = (r: Execution) => {
     setRun(r);
     setSelected(r.events[0]);
     setResult(undefined);
     setCompareId("");
   };
-  async function refresh() {
+  async function refresh(page = 0) {
     setError("");
     setLoading(true);
     try {
-      const loaded = await request<Execution[]>("/v1/runs");
-      setRuns(loaded);
-      if (!run && loaded[0]) choose(loaded[0]);
+      const query = new URLSearchParams({ limit: "100", offset: String(page) });
+      for (const [key, value] of Object.entries(filters))
+        if (value.trim()) query.set(key, value.trim());
+      const loaded = await request<{ runs: Execution[]; total: number }>(
+        `/v1/search?${query}`,
+      );
+      setRuns(loaded.runs);
+      setOffset(page);
+      setTotal(loaded.total);
+      if (
+        loaded.runs.length &&
+        !loaded.runs.some((item) => item.id === run?.id)
+      )
+        choose(loaded.runs[0]);
+      if (!loaded.runs.length) {
+        setRun(undefined);
+        setSelected(undefined);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -52,7 +100,11 @@ function App() {
         choose(branch);
       } else if (kind === "diff")
         setResult(
-          await request("/v1/diff", { left: run.id, right: compareId }),
+          await request("/v1/diff", {
+            left: run.id,
+            right: compareId,
+            semantic,
+          }),
         );
       else
         setResult(
@@ -79,6 +131,64 @@ function App() {
             ↻
           </button>
         </div>
+        <form
+          className="search-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void refresh();
+          }}
+        >
+          <label htmlFor="run-query">Search executions</label>
+          <input
+            id="run-query"
+            placeholder="Text or run name"
+            value={filters.q}
+            onChange={(event) =>
+              setFilters({ ...filters, q: event.target.value })
+            }
+          />
+          <details>
+            <summary>Filter executions</summary>
+            <label>
+              Status
+              <select
+                aria-label="Filter status"
+                value={filters.status}
+                onChange={(event) =>
+                  setFilters({ ...filters, status: event.target.value })
+                }
+              >
+                <option value="">Any status</option>
+                <option>completed</option>
+                <option>failed</option>
+                <option>running</option>
+              </select>
+            </label>
+            {(
+              [
+                ["model", "Model"],
+                ["tool", "Tool name"],
+                ["min_duration_ms", "Minimum latency (ms)"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key}>
+                {label}
+                <input
+                  value={filters[key]}
+                  type={key === "min_duration_ms" ? "number" : "text"}
+                  min="0"
+                  onChange={(event) =>
+                    setFilters({ ...filters, [key]: event.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </details>
+          <button type="submit" disabled={loading}>
+            Search
+          </button>
+        </form>
+        <p className="muted result-count">{total} matching runs</p>
         <nav aria-label="Recorded runs">
           {runs.map((r) => (
             <button
@@ -95,6 +205,43 @@ function App() {
             </button>
           ))}
         </nav>
+        <div className="pagination">
+          <button
+            disabled={offset === 0 || loading}
+            onClick={() => void refresh(Math.max(0, offset - 100))}
+          >
+            Previous
+          </button>
+          <button
+            disabled={offset + 100 >= total || loading}
+            onClick={() => void refresh(offset + 100)}
+          >
+            Next
+          </button>
+        </div>
+        <form
+          className="credentials"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setApiKey(credential.trim());
+            setAuthenticated(Boolean(credential.trim()));
+            setCredential("");
+            void refresh();
+          }}
+        >
+          <label htmlFor="api-key">API key (tab memory only)</label>
+          <input
+            id="api-key"
+            type="password"
+            autoComplete="off"
+            value={credential}
+            onChange={(event) => setCredential(event.target.value)}
+          />
+          <button type="submit">
+            {authenticated ? "Replace / clear key" : "Use API key"}
+          </button>
+          {authenticated && <small>Key active until page reload.</small>}
+        </form>
         <footer>
           <span className="dot completed" /> Local workspace
           <small>refract.execution.v1</small>
@@ -105,7 +252,7 @@ function App() {
           <span>
             Workspace <span className="slash">/</span> Executions
           </span>
-          <span className="version">FOUNDATION · 0.1</span>
+          <span className="version">EXECUTION INSPECTOR</span>
         </header>
         {error && (
           <div role="alert" className="error">
@@ -139,31 +286,71 @@ function App() {
               </div>
               <span className={`badge ${run.status}`}>{run.status}</span>
             </section>
-            <section className="metrics">
+            <section className="metrics" aria-label="Execution metrics">
               <div>
-                <label>EVENTS</label>
-                <strong>{run.events.length.toString().padStart(2, "0")}</strong>
-              </div>
-              <div>
-                <label>EVENT DURATION · SUM</label>
+                <label>COST · RECORDED ESTIMATE</label>
                 <strong>
-                  {run.events
-                    .reduce((n, e) => n + (e.duration_ms ?? 0), 0)
-                    .toLocaleString()}{" "}
-                  <small>ms</small>
+                  {summary?.cost === undefined
+                    ? "—"
+                    : `$${summary.cost.toFixed(6)}`}
+                </strong>
+                <small>
+                  {summary?.costCoverage}/{summary?.generations} model calls
+                  priced
+                </small>
+              </div>
+              <div>
+                <label>WALL LATENCY</label>
+                <strong>
+                  {number(summary?.latency)} <small>ms</small>
                 </strong>
               </div>
               <div>
-                <label>STARTED</label>
-                <strong className="date">
-                  {new Date(run.started_at).toLocaleString()}
+                <label>TOKENS · RECORDED</label>
+                <strong>{number(summary?.tokens)}</strong>
+                <small>
+                  {number(summary?.input)} in / {number(summary?.output)} out ·{" "}
+                  {summary?.usageCoverage}/{summary?.generations} calls
+                </small>
+              </div>
+              <div>
+                <label>CALLS</label>
+                <strong>
+                  {summary?.generations}{" "}
+                  <small>model / {summary?.tools} tool</small>
                 </strong>
               </div>
               <div>
-                <label>REPLAY MODE</label>
-                <strong className="date">Recorded outputs</strong>
+                <label>TTFT · MEAN</label>
+                <strong>
+                  {number(summary?.ttft, 1)} <small>ms</small>
+                </strong>
+              </div>
+              <div>
+                <label>CACHED INPUT TOKENS</label>
+                <strong>{number(summary?.cache)}</strong>
               </div>
             </section>
+            <div className="highlights">
+              <span>
+                Most expensive:{" "}
+                <button
+                  disabled={!summary?.expensive}
+                  onClick={() => setSelected(summary?.expensive)}
+                >
+                  {summary?.expensive?.name ?? "Not recorded"}
+                </button>
+              </span>
+              <span>
+                Slowest event:{" "}
+                <button
+                  disabled={!summary?.slowest}
+                  onClick={() => setSelected(summary?.slowest)}
+                >
+                  {summary?.slowest?.name ?? "No events"}
+                </button>
+              </span>
+            </div>
             <section className="toolbar">
               <div>
                 <button
@@ -179,12 +366,17 @@ function App() {
                 >
                   ⑂ Fork before event
                 </button>
-                <a
-                  className="button"
-                  href={`/v1/runs/${encodeURIComponent(run.id)}/artifact`}
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    void download(
+                      `/v1/runs/${encodeURIComponent(run.id)}/artifact`,
+                      `${run.id}.rfr`,
+                    ).catch((error) => setError(String(error)));
+                  }}
                 >
                   ↓ Export .rfr
-                </a>
+                </button>
               </div>
               <div>
                 <select
@@ -201,6 +393,14 @@ function App() {
                       </option>
                     ))}
                 </select>
+                <label className="semantic-toggle">
+                  <input
+                    type="checkbox"
+                    checked={semantic}
+                    onChange={(event) => setSemantic(event.target.checked)}
+                  />
+                  Semantic comparison
+                </label>
                 <button
                   disabled={busy || !compareId}
                   onClick={() => void action("diff")}
@@ -209,6 +409,49 @@ function App() {
                 </button>
               </div>
             </section>
+            {summary && candidate && (
+              <section className="comparison" aria-label="Metric comparison">
+                <div className="panel-heading">
+                  <h2>Metric comparison</h2>
+                  <span>
+                    {run.name} → {compare?.name}
+                  </span>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Current run</th>
+                      <th>Compared run</th>
+                      <th>Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(
+                      [
+                        ["Cost (USD)", "cost", 6],
+                        ["Latency (ms)", "latency", 1],
+                        ["Tokens", "tokens", 0],
+                        ["TTFT (ms)", "ttft", 1],
+                        ["Cached tokens", "cache", 0],
+                      ] as const
+                    ).map(([label, key, digits]) => (
+                      <tr key={key}>
+                        <th>{label}</th>
+                        <td>{number(summary[key], digits)}</td>
+                        <td>{number(candidate[key], digits)}</td>
+                        <td>{difference(summary[key], candidate[key])}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
+            <ExecutionGraph
+              events={run.events}
+              selected={selected?.id}
+              onSelect={setSelected}
+            />
             <section className="execution">
               <div className="timeline">
                 <div className="panel-heading">
@@ -279,7 +522,62 @@ function App() {
                   <h2>Execution result</h2>
                   <button onClick={() => setResult(undefined)}>Close</button>
                 </div>
-                <pre>{JSON.stringify(result, null, 2)}</pre>
+                {semanticResult && (
+                  <section aria-label="Semantic comparison results">
+                    <h3>
+                      {semanticResult.passed
+                        ? "Comparison passed"
+                        : "Review required"}
+                    </h3>
+                    <p>
+                      {semanticResult.equivalent} equivalent events ·{" "}
+                      {semanticResult.changed} changed events
+                    </p>
+                    <p className="muted">
+                      The offline grader compares normalized words, numbers and
+                      negation. Review meaning and factual accuracy when they
+                      matter.
+                    </p>
+                    {semanticResult.differences.length > 0 && (
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Event</th>
+                            <th>Category</th>
+                            <th>Explanation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {semanticResult.differences.map(
+                            (difference, index) => (
+                              <tr key={index}>
+                                <td>{difference.index + 1}</td>
+                                <td>{difference.category}</td>
+                                <td>
+                                  {difference.reason}
+                                  {difference.grade
+                                    ? ` (${difference.grade.grader}, ${(difference.grade.score * 100).toFixed(1)}%)`
+                                    : ""}
+                                </td>
+                              </tr>
+                            ),
+                          )}
+                        </tbody>
+                      </table>
+                    )}
+                    {semanticResult.budget_violations.map(
+                      (violation, index) => (
+                        <p key={index} className="error">
+                          {violation}
+                        </p>
+                      ),
+                    )}
+                  </section>
+                )}
+                <details>
+                  <summary>Full execution result</summary>
+                  <pre>{JSON.stringify(result, null, 2)}</pre>
+                </details>
               </section>
             )}
             <details className="metadata">

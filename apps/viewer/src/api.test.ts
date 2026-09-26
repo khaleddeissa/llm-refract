@@ -12,3 +12,18 @@ it("surfaces server failures", async () => {
     "blocked",
   );
 });
+it("keeps API credentials in memory and sends them on GET and POST", async () => {
+  const { setApiKey } = await import("./api");
+  const fetch = vi
+    .fn()
+    .mockImplementation(() => Promise.resolve(new Response("{}")));
+  vi.stubGlobal("fetch", fetch);
+  setApiKey("test-key");
+  await request("/v1/search");
+  expect(fetch.mock.calls[0][1].headers.Authorization).toBe("Bearer test-key");
+  await request("/v1/diff", { left: "one", right: "two" });
+  expect(fetch.mock.calls[1][1].headers.Authorization).toBe("Bearer test-key");
+  setApiKey("");
+  await request("/v1/search");
+  expect(fetch.mock.calls[2][1].headers.Authorization).toBeUndefined();
+});
