@@ -50,7 +50,7 @@ for async patterns, redaction, failure capture and submitting to a remote endpoi
 
 ## MCP server
 
-Executable stdio interface to the Rust Refract API: ten read-only tools, plus import/fork tools when
+Executable stdio interface to the Rust Refract API: thirteen read-only tools, plus import/fork tools when
 `REFRACT_MCP_ALLOW_WRITES=1`. Requires the `mcp` extra above. Start with:
 
 ```bash
@@ -70,3 +70,6 @@ Implementation: [`server.py`](https://github.com/khaleddeissa/llm-refract/blob/m
 ## License
 
 Apache-2.0 — see [LICENSE](https://github.com/khaleddeissa/llm-refract/blob/main/LICENSE).
+
+See [provider coverage](../../docs/usage/providers.md) for Azure, Gemini/Vertex, Bedrock and custom
+model adapters, and [production operation](../../docs/production.md) for reliable remote capture.

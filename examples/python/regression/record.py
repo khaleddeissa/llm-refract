@@ -5,7 +5,7 @@ from pathlib import Path
 import refract
 
 Path(".examples").mkdir(exist_ok=True)
-with refract.run("customer-support", path=".examples/actual.rfr"):
+with refract.run("customer-support", path=".examples/actual.rfr", fail_open=False):
     days = 30
     retrieval = refract.event(
         type="retrieval",

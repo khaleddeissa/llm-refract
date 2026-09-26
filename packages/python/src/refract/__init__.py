@@ -7,6 +7,7 @@ import copy
 import functools
 import inspect
 import json
+import math
 import time
 import urllib.request
 import uuid
@@ -18,6 +19,16 @@ from .artifact import pack
 
 SPEC_VERSION = "refract.execution.v1"
 _current: contextvars.ContextVar[Run | None] = contextvars.ContextVar("refract_run", default=None)
+_parent: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
+    "refract_parent", default=None
+)
+_METRICS = {
+    "input_tokens",
+    "output_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "total_tokens",
+}
 _TYPES = {
     "generation",
     "tool.call",
@@ -41,7 +52,8 @@ def _redact(value: Any) -> Any:
     if isinstance(value, dict):
         return {
             k: "[REDACTED]"
-            if any(
+            if not (k in _METRICS and isinstance(v, int) and not isinstance(v, bool) and v >= 0)
+            and any(
                 s in k.lower().replace("-", "_")
                 for s in (
                     "password",
@@ -73,10 +85,15 @@ class Run:
         path: str | Path | None = None,
         metadata: dict | None = None,
         endpoint: str | None = None,
+        exporter: Any = None,
+        fail_open: bool = True,
+        api_key: str | None = None,
     ):
         if not name.strip():
             raise ValueError("run name cannot be empty")
         self.path, self.endpoint = path, endpoint
+        self.exporter, self.fail_open, self.api_key = exporter, fail_open, api_key
+        self.recording_errors: list[str] = []
         self.data: dict[str, Any] = {
             "spec_version": SPEC_VERSION,
             "id": f"run_{uuid.uuid4()}",
@@ -110,11 +127,15 @@ class Run:
             if self.path:
                 self.export(self.path)
             if self.endpoint:
-                self.send(self.endpoint)
+                self.send(self.endpoint, api_key=self.api_key)
+            if self.exporter:
+                self.exporter.submit(self.snapshot())
         except Exception as recording_error:
-            if exc is None:
+            self.recording_errors.append(type(recording_error).__name__)
+            if exc is None and not self.fail_open:
                 raise
-            exc.add_note(f"Refract recording also failed: {type(recording_error).__name__}")
+            if exc is not None:
+                exc.add_note(f"Refract recording also failed: {type(recording_error).__name__}")
         finally:
             self._active = False
             _current.reset(self._token)
@@ -138,8 +159,11 @@ class Run:
             raise ValueError("unsupported event type or replay policy")
         if status not in {"running", "completed", "failed"} or not name.strip():
             raise ValueError("invalid event name/status")
-        if duration_ms < 0:
-            raise ValueError("duration must be nonnegative")
+        if not math.isfinite(duration_ms) or duration_ms < 0:
+            raise ValueError("duration must be finite and nonnegative")
+        active_parent = _parent.get()
+        if parent_id is None and active_parent and active_parent[0] == self.data["id"]:
+            parent_id = active_parent[1]
         if parent_id and parent_id not in {e["id"] for e in self.data["events"]}:
             raise ValueError("parent must precede child")
         event = _snapshot(
@@ -168,11 +192,14 @@ class Run:
         with path.open("xb") as target:
             target.write(body)
 
-    def send(self, endpoint: str) -> None:
+    def send(self, endpoint: str, *, api_key: str | None = None) -> None:
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         request = urllib.request.Request(
             endpoint.rstrip("/") + "/v1/runs",
             json.dumps(_snapshot(self.data)).encode(),
-            {"Content-Type": "application/json"},
+            headers,
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=10) as response:
@@ -191,6 +218,85 @@ def event(**kwargs) -> str:
     if current is None:
         raise RuntimeError("refract.event requires an active refract.run context")
     return current.event(**kwargs)
+
+
+class Span:
+    """An execution event opened before its children and completed on context exit."""
+
+    def __init__(self, *, type: str, name: str, **kwargs):
+        self.kwargs = {"type": type, "name": name, **kwargs}
+
+    def __enter__(self) -> Self:
+        current = _current.get()
+        if current is None:
+            raise RuntimeError("spans require an active run")
+        self.run = current
+        self.id = current.event(**self.kwargs, status="running")
+        self.data = current.data["events"][-1]
+        self.started = time.perf_counter()
+        self.token = _parent.set((current.data["id"], self.id))
+        return self
+
+    def output(self, value: Any) -> None:
+        self.data["output"] = _snapshot(value)
+
+    def attributes(self, **values: Any) -> None:
+        self.data["attributes"].update(_snapshot(values))
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        try:
+            self.data["status"] = "failed" if exc is not None else "completed"
+            self.data["duration_ms"] = (time.perf_counter() - self.started) * 1000
+            if exc is not None:
+                self.data["attributes"]["exception_type"] = type(exc).__name__
+        finally:
+            _parent.reset(self.token)
+
+
+def span(*, type: str, name: str, **kwargs) -> Span:
+    return Span(type=type, name=name, **kwargs)
+
+
+def instrument_openai(**kwargs):
+    """Opt in to capturing installed OpenAI SDK create calls; returns an undo handle."""
+    from .instrumentation import instrument_openai as install
+
+    return install(**kwargs)
+
+
+def instrument_anthropic(**kwargs):
+    """Opt in to capturing installed Anthropic SDK create calls; returns an undo handle."""
+    from .instrumentation import instrument_anthropic as install
+
+    return install(**kwargs)
+
+
+def instrument_google(client=None, **kwargs):
+    """Capture Gemini and Vertex AI google-genai content generation calls."""
+    from .instrumentation import instrument_google as install
+
+    return install(client, **kwargs)
+
+
+def instrument_azure(client=None, **kwargs):
+    """Capture Azure OpenAI Responses/Chat Completions on a client or globally."""
+    from .instrumentation import instrument_azure as install
+
+    return install(client, **kwargs)
+
+
+def instrument_bedrock(client, **kwargs):
+    """Capture boto3 Converse/ConverseStream on one existing Bedrock client."""
+    from .instrumentation import instrument_bedrock as install
+
+    return install(client, **kwargs)
+
+
+def instrument_custom(owner, method: str, *, provider: str, **kwargs):
+    """Capture an arbitrary SDK method using application-owned normalization hooks."""
+    from .instrumentation import instrument_custom as install
+
+    return install(owner, method, provider=provider, **kwargs)
 
 
 def trace(fn=None, *, name: str | None = None):

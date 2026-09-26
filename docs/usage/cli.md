@@ -23,3 +23,16 @@ Create `.examples/` first. Output files use exclusive creation, preventing silen
 `fork` preserves the prefix **before** the selected event, creates a new run ID and records lineage.
 `diff` compares ordered event semantics, ignoring generated IDs/timing. Exit 0 means no differences;
 exit 1 can mean differences or a command error, so automation must validate output or use the Action runner.
+
+## Experiment and evaluate
+
+```bash
+refract metrics baseline.rfr
+refract diff baseline.rfr candidate.rfr --semantic --max-cost-increase-percent 10
+refract eval tests/executions --report .examples/evaluation-report.json
+refract rerun baseline.rfr --from evt_2 --executor python3 \
+  --executor-arg examples/rerun/executor.py --model candidate --allow-live -o branch.rfr
+```
+
+See [metrics](metrics.md), [executable rerun](rerun.md), and [semantic evaluation](evaluation.md)
+for schemas, trust boundaries, exit codes and runnable examples.

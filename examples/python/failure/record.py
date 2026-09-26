@@ -7,7 +7,7 @@ import refract
 Path(".examples").mkdir(exist_ok=True)
 
 try:
-    with refract.run("failed-lookup", path=".examples/failure.rfr"):
+    with refract.run("failed-lookup", path=".examples/failure.rfr", fail_open=False):
         refract.event(
             type="tool.call",
             name="Lookup customer",

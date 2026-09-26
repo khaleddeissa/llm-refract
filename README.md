@@ -6,7 +6,7 @@
 
 **An open execution layer for AI systems.**
 
-Record executions as portable artifacts. Inspect every step. Replay captured outputs. Fork and compare runs.
+Record executions. Inspect their graph. Rerun with new models or code. Compare behavior and budgets.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/khaleddeissa/llm-refract/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/khaleddeissa/llm-refract/actions/workflows/ci.yml)
 [![Security](https://img.shields.io/badge/Security-CodeQL%20%26%20Dependency%20Review-2EA44F?style=for-the-badge&logo=github&logoColor=white)](https://github.com/khaleddeissa/llm-refract/actions/workflows/security.yml)
@@ -42,21 +42,39 @@ Python / TypeScript / native JSON
 
 ## One engine, many interfaces
 
-| Interface            | What you can do                                                                         | Guide                                  |
-| -------------------- | --------------------------------------------------------------------------------------- | -------------------------------------- |
-| Python SDK           | Record sync/async applications, decorators, explicit events, files and API submission   | [Python](docs/usage/python.md)         |
-| npm / TypeScript SDK | Record Node applications, isolate concurrent runs, write/read artifacts, send snapshots | [TypeScript](docs/usage/typescript.md) |
-| Rust crates          | Embed validation, artifacts, replay, diff and storage in your own Rust program          | [Rust](docs/usage/rust.md)             |
-| CLI                  | Inspect, validate, pack/unpack, replay, fork, diff or start a server                    | [CLI](docs/usage/cli.md)               |
-| REST API             | Store/read executions, export files, compare runs and create branches                   | [API](docs/api.md)                     |
-| Docker image + UI    | Run a persistent local execution workspace and compare recordings in the browser        | [Docker](docs/usage/docker.md)         |
-| MCP                  | Give an agent ten read-only tools; optionally enable import and prefix-fork tools       | [MCP](docs/usage/mcp.md)               |
-| Skills               | Teach agents supported inspection, debugging, artifact and regression workflows         | [Skills](docs/usage/skills.md)         |
-| GitHub Action        | Compare fresh application output against a reviewed execution baseline                  | [CI](docs/usage/ci.md)                 |
-| `.rfr` format        | Carry readable, versioned, checksummed execution data between these interfaces          | [File format](docs/usage/artifacts.md) |
+| Interface            | What you can do                                                                                     | Guide                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Python SDK           | Instrument OpenAI/Anthropic/LangChain, capture usage, batch delivery and run explicit continuations | [Python](docs/usage/python.md)         |
+| npm / TypeScript SDK | Wrap providers, isolate concurrent runs, record streams and deliver through a durable exporter      | [TypeScript](docs/usage/typescript.md) |
+| Rust crates          | Embed validation, metrics, artifacts, executors, semantic graders and evaluation                    | [Rust](docs/usage/rust.md)             |
+| CLI                  | Inspect, replay, rerun, compare semantics/budgets, evaluate datasets and serve                      | [CLI](docs/usage/cli.md)               |
+| REST API             | Batch ingestion, scoped search, metrics, semantic comparison and evaluation                         | [API](docs/api.md)                     |
+| Docker image + UI    | Explore execution graphs, usage, bottlenecks and comparison in the browser                          | [Docker](docs/usage/docker.md)         |
+| MCP                  | Give agents thirteen read tools, including metrics/evaluation/search, and two optional writes       | [MCP](docs/usage/mcp.md)               |
+| Skills               | Teach agents supported inspection, debugging, artifact and regression workflows                     | [Skills](docs/usage/skills.md)         |
+| GitHub Action        | Compare fresh application output against a reviewed execution baseline                              | [CI](docs/usage/ci.md)                 |
+| `.rfr` format        | Carry readable, versioned, checksummed execution data between these interfaces                      | [File format](docs/usage/artifacts.md) |
 
 The Rust engine owns validation, persistence, replay policies and comparison. SDKs capture data;
 MCP and the UI call the same API. Skills provide operating instructions; they are not separate engines.
+
+## From capture to experiments
+
+- **Automatic capture:** opt-in OpenAI, Anthropic, Azure, Gemini, Vertex, Bedrock and custom adapters record inputs, outputs, usage, streaming
+  latency and errors; Python also integrates LangChain callbacks; OpenTelemetry export connects both SDKs to Langfuse and other trace backends.
+- **Optimization:** compare measured token usage, latency and explicitly priced cost. Missing prices
+  stay unknown. Find expensive calls and slow steps directly in the execution graph.
+- **Executable branches:** supply trusted application executors to rerun a suffix with another model
+  or implementation. Prefix evidence and lineage stay attached to the new recording.
+- **Regression datasets:** grade outputs with the offline heuristic or a custom model grader and apply
+  cost/token/latency budgets across named cases. Integrate results into CI or MCP investigations.
+- **Service operation:** batch exporters fail open, retry and optionally spool to disk. The service
+  supports scoped API keys, roles, audit logs, retention, rate limiting and SQLite/PostgreSQL storage.
+
+[Provider coverage](docs/usage/providers.md) · [Instrumentation](docs/usage/python.md) · [Metrics](docs/usage/metrics.md) ·
+[Rerun](docs/usage/rerun.md) · [Evaluation](docs/usage/evaluation.md) · [Operation](docs/production.md)
+
+New capabilities described here are in this checkout; installed registry releases may lag until the next release.
 
 ## Record in your application
 
@@ -95,11 +113,12 @@ await refract.run(
 ```
 
 `endpoint` is optional: files work offline. Any provider or framework can emit canonical events;
-automatic instrumentation for every provider is not implied.
+enable the supported provider adapters to capture calls automatically. See the SDK guides for async,
+streaming, pricing, batching and framework configuration.
 
 ```bash
 pip install llm-refract
-uv tool install refract
+uv tool install "llm-refract[mcp]"
 npm install @llm-refract/sdk
 docker pull ghcr.io/khaleddeissa/llm-refract:latest
 ```
@@ -116,10 +135,9 @@ See [installation and development](docs/development.md) for building from source
   existing evidence; optional write tools import snapshots or create prefix branches.
 - **GitHub CI:** generate an actual recording from the application under test and compare it against
   a reviewed baseline with the included repository Action.
-- **Production capture:** manual recording can be integrated into application code, subject to your
-  privacy/error-handling requirements. The current server lacks authentication, tenancy, retention
-  and encrypted exports; it is not ready for public multi-tenant production hosting.
-  See [production boundaries](docs/production.md).
+- **Production capture:** use bounded background exporters and configure scoped API keys, retention,
+  encryption and delivery policies on the service. TLS termination, key lifecycle, backups and
+  deployment hardening remain operator responsibilities. See [production operation](docs/production.md).
 
 ## The `.rfr` execution file
 
@@ -139,8 +157,9 @@ them; [conversion instructions](docs/usage/artifacts.md) explain how to create a
 Checked-in samples live in [examples/artifacts](examples/artifacts); generated examples go in `.examples/`.
 
 Recorded replay returns captured outputs and never invokes external tools/models. Forking preserves
-a prefix and lineage; it does not resume application code. Diff compares ordered event semantics,
-not arbitrary application behavior. Regression checks need a **fresh** execution from the code under test.
+a prefix and lineage. Executable `rerun` uses explicitly supplied handlers; it cannot restore arbitrary
+process memory from an artifact. `diff --semantic` adds pluggable output grading and metric budgets.
+Regression checks need a **fresh** execution from the code under test.
 
 ## Execution inspector
 

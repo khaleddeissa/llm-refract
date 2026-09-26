@@ -35,7 +35,10 @@ it("reports failed remote persistence without hiding application exceptions", as
     vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 })),
   );
   await expect(
-    refract.run("transport", () => 42, { endpoint: "http://refract.test" }),
+    refract.run("transport", () => 42, {
+      endpoint: "http://refract.test",
+      failOpen: false,
+    }),
   ).rejects.toThrow("503");
   await expect(
     refract.run(

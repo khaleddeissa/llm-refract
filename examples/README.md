@@ -25,3 +25,6 @@ application calls and appropriate capture policies; these examples are not produ
 
 The [saved smoke-test artifacts](artifacts/smoke_test/README.md) include nine Python/Node outputs and a
 regression report, with the scenario, value provenance and reproduction commands for each.
+
+New experiment examples: [dataset evaluation](evaluation/README.md),
+[executable rerun](rerun/README.md), and [automatic TypeScript capture](typescript/instrumented/README.md).

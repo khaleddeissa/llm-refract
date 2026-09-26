@@ -17,13 +17,14 @@ make lint
 make generate docs
 ```
 
-`uv sync --locked` installs both Python packages and development tools for local contribution work.
+`uv sync --locked --all-packages --all-extras` installs the Python workspace, optional provider SDKs
+and development tools for complete contract testing. Runtime consumers install only their required extras.
 To use the published packages in another project instead, use `uv tool install llm-refract` / `pip install llm-refract` / `pip install "llm-refract[mcp]"` or `npm install @llm-refract/sdk`.
 
 ```bash
 cargo run -p refract-cli -- serve
 # In another terminal; Vite proxies /v1 to the server:
-npm run dev -w @llm-refract/viewer
+npm run dev --workspace apps/viewer
 # Alternatively, build the combined server/viewer image:
 docker compose up --build -d --wait
 ```
@@ -59,7 +60,7 @@ Lockfiles pin the tested environment while manifests express supported dependenc
 ## Packaging
 
 ```bash
-uv build --package refract
+uv build --package llm-refract
 npm pack -w @llm-refract/sdk
 cargo build --release -p refract-cli -p refract-server
 docker build -t llm-refract:local .
