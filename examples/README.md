@@ -20,8 +20,27 @@ The small readable reference recording in `artifacts/demo.rfr` is committed; gen
 | GitHub CI             | `examples/ci/regression.yml`                                               | Fresh-vs-baseline comparison             |
 | Skills                | [agent request examples](../docs/usage/skills.md)                          | Evidence-based debugging                 |
 
-Demo model outputs are synthetic and need no provider keys. Production use requires your actual
-application calls and appropriate capture policies; these examples are not production deployment templates.
+The basic demo outputs are synthetic and need no provider keys. Provider examples below explicitly
+call your configured endpoint or local weights where indicated. Production use requires your actual
+application calls and appropriate capture policies; see the [deployment guide](../docs/production.md).
 
 The [saved smoke-test artifacts](artifacts/smoke_test/README.md) include nine Python/Node outputs and a
 regression report, with the scenario, value provenance and reproduction commands for each.
+
+New experiment examples: [dataset evaluation](evaluation/README.md),
+[executable rerun](rerun/README.md), and [automatic TypeScript capture](typescript/instrumented/README.md).
+
+## Providers and observability
+
+| Example                                                             | Purpose                                                     | Requirements                                       |
+| ------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| [Custom Python model](python/providers/custom.py)                   | Adapt an ordinary method and save a recording               | Offline, no provider                               |
+| [OpenAI-compatible endpoint](python/providers/openai_compatible.py) | Record Ollama, vLLM or a private gateway                    | Existing endpoint/model and optional `LLM_API_KEY` |
+| [Local Transformers](python/providers/transformers_local.py)        | Record inference from existing local weights                | Transformers/backend installed; downloads disabled |
+| [LangChain](python/providers/langchain.py)                          | Record a runnable through callbacks                         | `langchain-core`; offline                          |
+| [Python Langfuse export](python/providers/langfuse_export.py)       | Preview OTLP JSON or explicitly export an artifact          | Keys/base URL only with `--send`                   |
+| [Node providers](typescript/providers/README.md)                    | Provider shapes, custom/local inference and Langfuse export | See each command's requirements                    |
+
+See [provider coverage](../docs/usage/providers.md) and [OpenTelemetry](../docs/usage/otel.md) for
+supported methods, export boundaries and production configuration. Live provider examples may incur
+the provider's normal charges; test suites use intercepted HTTP or deterministic fixtures.

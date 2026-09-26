@@ -1,6 +1,6 @@
 .PHONY: setup install hooks lint format test test-python test-js test-rust test-integration test-e2e build build-cli build-sdk docker-build docker-up docker-down generate docs security ci
 setup install:
-	uv sync --locked
+	uv sync --locked --all-packages --all-extras
 	npm ci
 hooks:
 	uv run pre-commit install --install-hooks
@@ -65,3 +65,4 @@ test-contract:
 test-interfaces:
 	uv run python tests/integration/interfaces.py
 	node tests/integration/sdk.mjs
+	uv run python tests/integration/platform_checks.py

@@ -1,0 +1,82 @@
+# Isolated production profile: only the HTTPS ingress is published to the host.
+services:
+  refract:
+    build:
+      context: ../..
+    environment:
+      REFRACT_MODE: production
+      REFRACT_TLS_TERMINATED: "1"
+      REFRACT_DATABASE_URL_FILE: /run/secrets/database_url
+      REFRACT_API_KEYS_FILE: /run/secrets/api_keys
+      REFRACT_ENCRYPTION_KEY_FILE: /run/secrets/encryption_key
+      REFRACT_RATE_LIMIT: "600"
+      REFRACT_RETENTION_DAYS: "30"
+      REFRACT_REDACT_EMAILS: "1"
+    secrets:
+      - database_url
+      - api_keys
+      - encryption_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    networks: [backend]
+    stop_grace_period: 45s
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: refract
+      POSTGRES_USER: refract
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U refract -d refract"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [backend]
+  ingress:
+    image: caddy:2-alpine
+    environment:
+      REFRACT_HOST: ${REFRACT_HOST:?Set REFRACT_HOST to your public DNS hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      refract:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend, ingress]
+secrets:
+  api_keys:
+    file: ./secrets/api_keys.json
+  encryption_key:
+    file: ./secrets/encryption_key
+  database_url:
+    file: ./secrets/database_url
+  postgres_password:
+    file: ./secrets/postgres_password
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+networks:
+  backend:
+    internal: true
+  ingress:

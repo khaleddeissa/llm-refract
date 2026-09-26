@@ -30,8 +30,9 @@ GitHub Marketplace listing requirements disallow — so it is not listed there, 
 tag works identically either way.
 
 The composite Action builds the Rust CLI, validates both inputs and writes `refract-report.json`.
-Differences or invalid artifacts fail the step. The report records event-level differences; thresholds,
-semantic model graders and remote datasets are not implemented.
+Differences or invalid artifacts fail the step. The default report records strict event differences. Pass a `comparison-options` JSON path to enable
+semantic similarity and cost/latency/token budgets; use `refract eval` for multi-case datasets and custom
+model graders. See [evaluation](evaluation.md).
 
 ```bash
 python3 packages/github-action/compare.py examples/artifacts/demo.rfr .examples/actual.rfr \
@@ -42,3 +43,12 @@ Review baseline updates as code changes. Upload reports/recordings with your CI 
 under your own data-retention policy. Repository CI runs on pushes/PRs/manual dispatch, with no scheduled
 jobs. Dependabot update checks are monthly. Tagged releases publish container images, npm and PyPI
 packages via `.github/workflows/publish.yml`.
+
+For example, `comparison-options: tests/refract-options.json` can point to:
+
+```json
+{ "similarity_threshold": 0.85, "max_cost_increase_percent": 10 }
+```
+
+Budget checks fail when required cost/usage is missing. Generate the candidates in CI, retain baseline
+review, and upload `refract-report.json` with an `if: always()` artifact step when desired.

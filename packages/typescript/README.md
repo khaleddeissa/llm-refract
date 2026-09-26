@@ -52,8 +52,17 @@ const recorded = unpack(await readFile("agent.rfr"));
 ```
 
 Omit `endpoint` for offline recording, or `path` for API-only submission. `onComplete(execution)` gives
-a cloned snapshot after capture/export. Recording/export errors reject an otherwise successful call;
-application errors take priority.
+a cloned snapshot after capture/export. Capture and export fail open by default; set `onError` to
+observe failures or `failOpen: false` for strict recording. Application errors always propagate.
+
+Wrap configured OpenAI, Anthropic, Azure, Gemini, Vertex or Bedrock clients for provider capture,
+or use `instrumentCustom` for open-source and application-specific backends. OpenAI-compatible local
+endpoints use the same wrapper. Async streams retain chunk identity and record partial consumption,
+errors, token counts and first-text latency. Credentials and model selection stay in your application.
+
+`BatchExporter` adds bounded background ingestion, retries and optional local disk recovery.
+`refract.span` records nested tools and framework calls; `toOtlp`/`fromOtlp` bridge existing traces.
+`exportLangfuse` explicitly exports completed recordings to a configured Langfuse instance.
 
 `pack`/`unpack` read and write the text artifact profile and verify checksums on read. The Rust CLI
 reads legacy ZIP recordings; TypeScript types describe canonical events, with authoritative ingestion

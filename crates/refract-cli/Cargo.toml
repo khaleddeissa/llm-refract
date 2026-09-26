@@ -13,6 +13,8 @@ refract-artifact = { path = "../refract-artifact" }
 refract-replay = { path = "../refract-replay" }
 refract-diff = { path = "../refract-diff" }
 refract-server = { path = "../refract-server" }
+serde.workspace = true
+refract-eval = { path = "../refract-eval" }
 serde_json.workspace = true
 clap.workspace = true
 tokio.workspace = true

@@ -7,3 +7,6 @@ repository also contains CI workflows, which Marketplace listing disallows.
 
 See [usage](../../docs/usage/ci.md). Run locally with
 `python3 packages/github-action/compare.py BASELINE ACTUAL --cli target/debug/refract`.
+
+The root Action also accepts `comparison-options`, a JSON file of similarity/cost/latency/token
+thresholds. See [evaluation](../../docs/usage/evaluation.md) for datasets and pluggable graders.

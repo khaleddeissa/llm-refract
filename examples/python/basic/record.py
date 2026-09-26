@@ -4,7 +4,7 @@ import refract
 
 Path(".examples").mkdir(exist_ok=True)
 
-with refract.run("customer-support", path=".examples/example.rfr"):
+with refract.run("customer-support", path=".examples/example.rfr", fail_open=False):
     lookup = refract.event(type="retrieval", name="Find policy", output={"return_days": 30})
     refract.event(
         type="generation",

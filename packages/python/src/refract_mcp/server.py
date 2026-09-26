@@ -17,10 +17,13 @@ READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=F
 
 def api(path: str, body: dict | None = None) -> Any:
     endpoint = os.environ.get("REFRACT_SERVER_URL", "http://127.0.0.1:8000").rstrip("/")
+    headers = {"Content-Type": "application/json"}
+    if key := os.environ.get("REFRACT_API_KEY"):
+        headers["Authorization"] = "Bearer " + key
     request = urllib.request.Request(
         endpoint + path,
         None if body is None else json.dumps(body).encode(),
-        {"Content-Type": "application/json"},
+        headers,
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         data = response.read(17 * 1024 * 1024 + 1)
@@ -36,21 +39,38 @@ def run_path(run_id: str) -> str:
 
 
 @mcp.tool(annotations=READ)
-def search_runs(query: str = "", status: str = "") -> list[dict]:
-    """Search the latest 100 stored snapshots by name/id and optional status."""
+def search_runs(
+    query: str = "",
+    status: str = "",
+    model: str = "",
+    tool: str = "",
+    min_duration_ms: float | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """Query stored executions using server-side filters and pagination."""
     if status not in {"", "running", "completed", "failed"}:
         raise ValueError("unsupported status")
-    return [
-        r
-        for r in api("/v1/runs")
-        if query.lower() in (r["name"] + " " + r["id"]).lower()
-        and (not status or r["status"] == status)
-    ]
+    if not 1 <= limit <= 1000 or offset < 0:
+        raise ValueError("invalid pagination")
+    params: dict[str, Any] = {
+        "q": query,
+        "status": status,
+        "model": model,
+        "tool": tool,
+        "limit": limit,
+        "offset": offset,
+    }
+    if min_duration_ms is not None:
+        if min_duration_ms < 0:
+            raise ValueError("duration must be nonnegative")
+        params["min_duration_ms"] = min_duration_ms
+    return api("/v1/search?" + urllib.parse.urlencode(params))["runs"]
 
 
 @mcp.tool(annotations=READ)
 def list_failed_runs() -> list[dict]:
-    """Return failed runs among the latest 100 snapshots."""
+    """Return the first page of failed runs using an indexed server query."""
     return search_runs(status="failed")
 
 
@@ -80,9 +100,17 @@ def show_execution_graph(run_id: str) -> dict:
 
 
 @mcp.tool(annotations=READ)
-def compare_runs(left: str, right: str) -> dict:
+def compare_runs(left: str, right: str, semantic: bool = False, threshold: float = 0.75) -> dict:
     """Compare recorded event semantics; does not execute either run."""
-    return api("/v1/diff", {"left": left, "right": right})
+    return api(
+        "/v1/diff",
+        {
+            "left": left,
+            "right": right,
+            "semantic": semantic,
+            "options": {"similarity_threshold": threshold},
+        },
+    )
 
 
 @mcp.tool(annotations=READ)
@@ -108,7 +136,9 @@ def capabilities() -> str:
         {
             "transport": "stdio",
             "read_only": os.environ.get("REFRACT_MCP_ALLOW_WRITES") != "1",
-            "run_list_limit": 100,
+            "pagination": True,
+            "metrics": True,
+            "semantic_diff": True,
             "live_replay": False,
             "spec_version": "refract.execution.v1",
         }
@@ -122,7 +152,7 @@ def main() -> None:
 @mcp.tool(annotations=READ)
 def health() -> dict:
     """Check API readiness and describe the supported storage/replay mode."""
-    return {"readiness": api("/v1/ready"), "storage": "sqlite", "replay": "recorded"}
+    return {"readiness": api("/v1/ready"), "replay": "recorded"}
 
 
 @mcp.tool(annotations=READ)
@@ -143,3 +173,23 @@ if os.environ.get("REFRACT_MCP_ALLOW_WRITES") == "1":
     def import_run(execution: dict) -> dict:
         """Store a canonical snapshot through Rust validation/redaction; duplicate IDs conflict."""
         return api("/v1/runs", execution)
+
+
+@mcp.tool(annotations=READ)
+def run_metrics(run_id: str) -> dict:
+    """Read measured token, cost, latency, cache and failure totals; unknown prices stay null."""
+    return api(run_path(run_id) + "/metrics")
+
+
+@mcp.tool(annotations=READ)
+def evaluate_runs(pairs: list[dict], options: dict | None = None) -> dict:
+    """Evaluate named baseline/candidate ID pairs with semantic and metric budgets. No execution."""
+    return api("/v1/eval", {"pairs": pairs, "options": options or {}})
+
+
+@mcp.tool(annotations=READ)
+def similar_runs(run_id: str, limit: int = 10) -> dict:
+    """Find runs with similar recorded failure/event text using lexical ranking."""
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    return api(run_path(run_id) + "/similar?" + urllib.parse.urlencode({"limit": limit}))

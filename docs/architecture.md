@@ -1,27 +1,28 @@
-# Architecture
-
-The canonical execution model is shared by the Rust engine and language-neutral JSON schemas.
-SDKs produce snapshots; the native collector validates/redacts them before SQLite persistence.
-REST, the viewer and MCP operate on those snapshots. The CLI and Rust libraries can work offline.
+# Execution architecture
 
 ```mermaid
-flowchart LR
-  SDK[Python / Node SDKs] --> Run[Canonical execution]
-  Run --> Artifact[Readable .rfr]
-  Run --> API[Rust API]
-  API --> Storage[(SQLite / SQLx)]
-  UI[React viewer] --> API
-  MCP[MCP tools] --> API
-  Artifact --> CLI[Rust CLI / libraries]
-  CLI --> Operations[Inspect / recorded replay / prefix fork / diff]
-  Operations --> CI[Fresh recording regression comparison]
+flowchart TD
+  App[Python / Node / OTel] --> Capture[Provider wrappers / spans / explicit events]
+  Capture --> Export[Bounded queue / sampling / redaction / retry spool]
+  Capture --> Artifact[Readable .rfr]
+  Export --> API[Authenticated scoped API / batch ingestion]
+  API --> DB[SQLite or PostgreSQL / encrypted payloads / indexed events]
+  DB --> Outbox[Durable delivery outbox]
+  API --> UI[Graph inspector / search / metrics]
+  API --> MCP[MCP evidence tools]
+  Artifact --> CLI[CLI and Rust libraries]
+  CLI --> Experiment[Explicit executors / model replacement / lineage]
+  Experiment --> Artifact
+  Artifact --> Eval[Semantic graders / metric budgets / datasets / CI]
 ```
 
-Runs are immutable snapshots. Events form an ordered parent graph: a parent must precede its child.
-A fork gets a new run ID, retains prefix event IDs within that run and records lineage. It stays running
-until a future continuation mechanism exists. Diff compares event positions, parents, inputs, outputs,
-attributes, status and replay policy; generated IDs and timing are ignored.
+Runs remain immutable snapshots. Parent events precede their children, and graph visualization uses
+recorded relationships. Forking creates a prefix; executable rerun invokes explicitly chosen trusted
+application handlers for the suffix. No executable command comes from the artifact itself.
 
-New artifacts use a checksummed text profile. Rust also reads the legacy ZIP profile. Readers do not
-execute embedded code. The API lists at most 100 full snapshots and limits request bodies to 16 MiB.
-See [repository map](repository.md), [format](usage/artifacts.md) and [production boundaries](production.md).
+Measurement attributes extend the v1 execution model without a format break. Raw comparison remains
+available alongside pluggable output grading and budget evaluation. UTF-8 artifacts preserve the
+checksummed payload; Rust still reads legacy ZIP recordings.
+
+See [repository map](repository.md), [production operation](production.md),
+[rerun](usage/rerun.md) and [evaluation](usage/evaluation.md) for boundaries and configuration.

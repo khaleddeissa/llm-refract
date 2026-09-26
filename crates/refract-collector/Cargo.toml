@@ -11,3 +11,4 @@ workspace = true
 refract-core = { path = "../refract-core" }
 serde_json.workspace = true
 anyhow.workspace = true
+regex = "1"

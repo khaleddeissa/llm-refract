@@ -14,18 +14,21 @@
 }
 ```
 
-| Tool                    | Purpose                                                  |
-| ----------------------- | -------------------------------------------------------- |
-| `health`                | Check server readiness                                   |
-| `search_runs`           | Filter latest 100 snapshots by name/ID/status            |
-| `list_failed_runs`      | Find failed snapshots within that window                 |
-| `inspect_run`           | Read metadata and events                                 |
-| `inspect_event`         | Read one event                                           |
-| `show_execution_graph`  | Return nodes and parent-child edges                      |
-| `compare_runs`          | Compare ordered event semantics                          |
-| `find_first_divergence` | Read the first changed position                          |
-| `export_run`            | Return canonical data and artifact download path         |
-| `replay_recorded`       | Return captured outputs, with BLOCKED policy enforcement |
+| Tool                    | Purpose                                                               |
+| ----------------------- | --------------------------------------------------------------------- |
+| `health`                | Check server readiness                                                |
+| `search_runs`           | Server-side name/ID/status/model/tool/latency filters with pagination |
+| `list_failed_runs`      | Query the first page of failed snapshots                              |
+| `inspect_run`           | Read metadata and events                                              |
+| `inspect_event`         | Read one event                                                        |
+| `show_execution_graph`  | Return nodes and parent-child edges                                   |
+| `compare_runs`          | Compare ordered event semantics                                       |
+| `find_first_divergence` | Read the first changed position                                       |
+| `export_run`            | Return canonical data and artifact download path                      |
+| `run_metrics`           | Measured usage, cost, latency and coverage                            |
+| `evaluate_runs`         | Grade named stored run pairs with semantic/budget options             |
+| `similar_runs`          | Lexically rank related executions                                     |
+| `replay_recorded`       | Return captured outputs, with BLOCKED policy enforcement              |
 
 The `refract://capabilities` resource reports the transport and restrictions.
 By default the server exposes only read-only tools, including non-mutating recorded playback.
@@ -37,12 +40,17 @@ Set **`REFRACT_MCP_ALLOW_WRITES=1`** in the MCP server environment to additional
 Host/client approval settings still apply. The opt-in is not authentication or multi-user authorization.
 No tool accepts arbitrary filesystem destinations. `export_run` does not save a file on the host.
 
-## Is the interface complete?
+## Authentication and experiments
 
-It covers the current engine's read, comparison and recorded-playback operations. Optional writes cover
-native ingestion and forks. It does not implement future capabilities such as live replay, checkpoint
-continuation, datasets, provider substitution, paginated history or OTLP ingestion. Those require engine
-work before MCP tools can honestly expose them. Search currently covers only the latest 100 runs.
+Set `REFRACT_API_KEY` in the MCP process environment for a secured service. The bearer key determines
+its organization/project/environment and role. `REFRACT_MCP_ALLOW_WRITES` only controls tool discovery;
+the service still authorizes every request. Do not paste keys into tool arguments or recordings.
 
-Run `uv run python examples/mcp/client.py` for a real protocol handshake/tool/resource example.
-The test suite checks discovery through stdio and the registration boundary for write tools.
+`compare_runs(left, right, semantic=True, threshold=0.85)` includes offline output grading and metric
+changes. `evaluate_runs` accepts named `{name,left,right}` pairs and evaluation options. Search accepts
+`model`, `tool`, `min_duration_ms`, `limit` and `offset`; it is no longer limited to filtering a local
+100-run window. All queries remain within the key's scope.
+
+There are thirteen read tools and two opt-in write tools. Executable rerun is available through trusted
+SDK/CLI executors, while MCP intentionally remains an evidence/query interface and never executes
+arbitrary commands from a tool argument or recording.

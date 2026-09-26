@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: read
 concurrency:
   group: integration-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,48 +27,76 @@ jobs:
               - "tests/**"
               - "Dockerfile"
               - "docker-compose.yml"
+              - "deploy/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
               - "package.json"
               - "package-lock.json"
               - ".github/workflows/test.yml"
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
-      - if: steps.changes.outputs.relevant == 'true'
-        run: uv sync --locked --all-extras
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
+        run: uv sync --locked --all-packages --all-extras
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         run: npm ci
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         run: npm run build -w @llm-refract/sdk
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         run: npx playwright install --with-deps chromium
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         run: docker compose up --build -d --wait
 
-      - if: steps.changes.outputs.relevant == 'true'
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         run: make test-integration test-interfaces test-e2e
 
-      - if: always() && steps.changes.outputs.relevant == 'true'
+      - if: always() && (steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch')
         run: docker compose logs && docker compose down
 
-      - if: steps.changes.outputs.relevant != 'true'
+      - if: steps.changes.outputs.relevant != 'true' && github.event_name != 'workflow_dispatch'
         run: echo "No relevant files changed — skipping integration tests."
+
+  postgres:
+    name: PostgreSQL storage contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: refract
+          POSTGRES_PASSWORD: integration-only-password
+          POSTGRES_DB: refract_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U refract -d refract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      REFRACT_TEST_POSTGRES_URL: postgres://refract:integration-only-password@localhost:5432/refract_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --locked -p refract-storage postgres_platform_contract -- --ignored --nocapture

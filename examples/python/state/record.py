@@ -6,7 +6,7 @@ import refract
 
 Path(".examples").mkdir(exist_ok=True)
 
-with refract.run("checkout", path=".examples/state.rfr"):
+with refract.run("checkout", path=".examples/state.rfr", fail_open=False):
     changed = refract.event(
         type="state.change",
         name="Apply discount",

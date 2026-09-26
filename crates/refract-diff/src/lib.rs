@@ -1,4 +1,9 @@
+mod semantic;
 use refract_core::Run;
+pub use semantic::{
+    Grade, Grader, OfflineGrader, SemanticOptions, SemanticReport, compare_semantic,
+    compare_with_grader,
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 #[derive(Debug, Serialize)]

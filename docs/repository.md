@@ -2,11 +2,12 @@
 
 | Directory                         | Purpose                                                                 | Shipped functionality or examples?  |
 | --------------------------------- | ----------------------------------------------------------------------- | ----------------------------------- |
-| `crates/refract-core`             | Canonical events, validation, redaction                                 | Engine library                      |
+| `crates/refract-core`             | Canonical events, validation, redaction and measurement aggregation     | Engine library                      |
 | `crates/refract-artifact`         | Text writer, checksums, text/legacy-ZIP reader                          | Engine library                      |
-| `crates/refract-replay`           | Recorded playback and prefix branching                                  | Engine library                      |
-| `crates/refract-diff`             | Ordered semantic comparison                                             | Engine library                      |
-| `crates/refract-storage`          | SQLite persistence and colocated SQLx migrations                        | Engine library                      |
+| `crates/refract-replay`           | Recorded playback, prefix branching and explicit executor continuation  | Engine library                      |
+| `crates/refract-diff`             | Ordered comparison and pluggable output grading with budgets            | Engine library                      |
+| `crates/refract-eval`             | Dataset manifests, per-case grading and regression reports              | Engine library                      |
+| `crates/refract-storage`          | Scoped SQLite/PostgreSQL persistence, encryption, indexes and outbox    | Engine library                      |
 | `crates/refract-collector`        | Native run normalization before persistence                             | Engine library, not an OTLP service |
 | `crates/refract-server`           | REST handlers and static UI delivery                                    | Executable service                  |
 | `crates/refract-cli`              | Offline artifact commands and server launcher                           | Executable CLI                      |

@@ -26,9 +26,10 @@ def test_read_tools():
             }
         ],
     }
-    with patch.object(server, "api", return_value=[run]):
+    with patch.object(server, "api", return_value={"runs": [run]}) as request:
         assert server.list_failed_runs() == [run]
-        assert server.search_runs("missing") == []
+        assert server.search_runs("missing") == [run]
+        assert "q=missing" in request.call_args.args[0]
     with patch.object(server, "api", return_value=run):
         assert server.inspect_event("x", "e")["name"] == "lookup"
         assert server.show_execution_graph("x")["edges"] == []
@@ -47,7 +48,7 @@ def test_real_stdio_handshake_and_discovery(writes):
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
-            assert len(tools.tools) == (12 if writes else 10)
+            assert len(tools.tools) == (15 if writes else 13)
             names = {t.name for t in tools.tools}
             assert ("fork_run" in names) == writes
             assert ("import_run" in names) == writes
@@ -61,3 +62,13 @@ def test_real_stdio_handshake_and_discovery(writes):
             assert json.loads(resource.contents[0].text)["live_replay"] is False
 
     asyncio.run(asyncio.wait_for(exercise(), timeout=20))
+
+
+def test_metrics_and_comparison_forward_options():
+    with patch.object(server, "api", return_value={}) as request:
+        server.compare_runs("a", "b", semantic=True, threshold=0.9)
+        assert request.call_args.args[1]["options"]["similarity_threshold"] == 0.9
+        server.run_metrics("a/b")
+        assert request.call_args.args[0] == "/v1/runs/a%2Fb/metrics"
+    with pytest.raises(ValueError):
+        server.search_runs(limit=1001)
