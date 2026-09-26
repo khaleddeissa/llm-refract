@@ -47,7 +47,6 @@ COPY --chmod=755 deploy/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # Configure the server and persistent data location.
 ENV REFRACT_BIND="0.0.0.0:8000" \
-    REFRACT_DATABASE_URL="sqlite:///data/refract.db" \
     REFRACT_UI_DIR="/app/ui"
 
 USER 10001:10001
