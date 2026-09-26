@@ -27,3 +27,4 @@ reqwest.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
+sqlx.workspace = true

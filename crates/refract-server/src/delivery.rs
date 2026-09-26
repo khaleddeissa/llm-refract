@@ -262,6 +262,10 @@ mod tests {
         routing::post,
     };
     use std::sync::{Arc, Mutex};
+
+    type WebhookRequests = Arc<Mutex<Vec<(HeaderMap, String)>>>;
+    type ObjectRequests = Arc<Mutex<Vec<(axum::http::Method, String, HeaderMap, String)>>>;
+
     #[tokio::test]
     async fn webhook_retries_and_delivers_signed_envelope() {
         let received = Arc::new(Mutex::new(Vec::<(HeaderMap, String)>::new()));
@@ -269,7 +273,7 @@ mod tests {
             .route(
                 "/events",
                 post(
-                    |State(state): State<Arc<Mutex<Vec<(HeaderMap, String)>>>>,
+                    |State(state): State<WebhookRequests>,
                      headers: HeaderMap,
                      body: String| async move {
                         let mut events = state.lock().unwrap();
@@ -330,7 +334,7 @@ mod tests {
             .route(
                 "/{*path}",
                 any(
-                    |State(state): State<Arc<Mutex<Vec<(Method, String, HeaderMap, String)>>>>,
+                    |State(state): State<ObjectRequests>,
                      method: Method,
                      uri: axum::http::Uri,
                      headers: HeaderMap,

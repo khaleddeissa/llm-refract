@@ -205,7 +205,24 @@ async fn mounted_secrets_enable_authenticated_encrypted_ingestion() {
         .await
         .unwrap();
     assert_eq!(fetched, run);
-    let bytes = std::fs::read(fixture.directory.join("test.db")).unwrap();
-    assert!(bytes.windows(7).any(|window| window == b"enc:v1:"));
+    // Read committed data through SQLite: live writes may still reside in its WAL.
+    // Do not reopen through Store, which can encrypt plaintext during migration.
+    let database = sqlx::SqlitePool::connect_with(
+        sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(fixture.directory.join("test.db"))
+            .read_only(true),
+    )
+    .await
+    .unwrap();
+    let payload: String = sqlx::query_scalar(
+        "SELECT execution FROM runs WHERE organization='test' AND project='test' AND environment='test' AND id=?",
+    )
+    .bind(&run.id)
+    .fetch_one(&database)
+    .await
+    .unwrap();
+    assert!(payload.starts_with("enc:v1:"));
+    assert!(!payload.contains(&run.name));
+    database.close().await;
     // Run names remain indexed; full event payload encryption is tested in the storage crate.
 }

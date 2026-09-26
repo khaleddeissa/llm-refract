@@ -65,4 +65,4 @@ test-contract:
 test-interfaces:
 	uv run python tests/integration/interfaces.py
 	node tests/integration/sdk.mjs
-	uv run python tests/integration/platform.py
+	uv run python tests/integration/platform_checks.py

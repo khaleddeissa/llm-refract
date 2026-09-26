@@ -4,6 +4,7 @@ import asyncio
 import json
 import struct
 import zlib
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -242,7 +243,9 @@ def test_bedrock_real_sdk_and_binary_event_stream(monkeypatch, streaming):
             pass
 
     def send(request):
-        assert request.url.startswith("https://fixture.invalid")
+        endpoint = urlsplit(request.url)
+        assert endpoint.scheme == "https"
+        assert endpoint.netloc == "fixture.invalid"
         return AWSResponse(
             request.url,
             200,

@@ -7,10 +7,10 @@ See [provider integrations](usage/providers.md) and [Python](usage/python.md)/[N
 
 ## Choose an operating mode
 
-| Mode | Configuration | Intended use |
-| --- | --- | --- |
-| Offline | SDK `output` or `.rfr` files and CLI | Local development, CI and restricted networks; no service required |
-| Local service | `docker compose up --build -d --wait` | Loopback-only Inspector/API with SQLite and a persistent volume |
+| Mode           | Configuration                                                     | Intended use                                                                          |
+| -------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Offline        | SDK `output` or `.rfr` files and CLI                              | Local development, CI and restricted networks; no service required                    |
+| Local service  | `docker compose up --build -d --wait`                             | Loopback-only Inspector/API with SQLite and a persistent volume                       |
 | Shared service | `REFRACT_MODE=production`, scoped keys, encryption, HTTPS ingress | Authenticated applications and teams; PostgreSQL recommended for concurrent workloads |
 
 Production mode refuses startup unless API keys, a valid encryption key and
@@ -72,21 +72,21 @@ Request headers cannot change that scope. Even an admin key administers only its
 
 ## Configuration reference
 
-| Variable | Meaning/default |
-| --- | --- |
-| `REFRACT_MODE` | `local` or `production`; default `local` |
-| `REFRACT_BIND` | Native default `127.0.0.1:8000`; container listens on `0.0.0.0:8000` |
-| `REFRACT_DATABASE_URL` / `_FILE` | SQLite or PostgreSQL URL; default `sqlite://refract.db` |
-| `REFRACT_API_KEYS` / `_FILE` | JSON array of scoped API keys; schema/example above |
-| `REFRACT_REQUIRE_AUTH` | `1` requires keys even in local mode |
-| `REFRACT_ENCRYPTION_KEY` / `_FILE` | Base64-encoded random 32-byte AES-256-GCM key |
-| `REFRACT_TLS_TERMINATED` | Must be `1` in production with HTTPS at ingress |
-| `REFRACT_RATE_LIMIT` | Positive requests/key/minute, default `600`; per server process |
-| `REFRACT_RETENTION_DAYS` | Optional `1..36500`; hourly run cleanup using server receipt time |
-| `REFRACT_REDACT_KEYS` | Additional comma-separated key fragments to remove recursively |
-| `REFRACT_REDACT_PATTERNS` | JSON array of Rust regex patterns applied to text |
-| `REFRACT_REDACT_EMAILS` | `1` adds email redaction |
-| `REFRACT_UI_DIR` | Native default `apps/viewer/dist`; container `/app/ui` |
+| Variable                           | Meaning/default                                                      |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| `REFRACT_MODE`                     | `local` or `production`; default `local`                             |
+| `REFRACT_BIND`                     | Native default `127.0.0.1:8000`; container listens on `0.0.0.0:8000` |
+| `REFRACT_DATABASE_URL` / `_FILE`   | SQLite or PostgreSQL URL; default `sqlite://refract.db`              |
+| `REFRACT_API_KEYS` / `_FILE`       | JSON array of scoped API keys; schema/example above                  |
+| `REFRACT_REQUIRE_AUTH`             | `1` requires keys even in local mode                                 |
+| `REFRACT_ENCRYPTION_KEY` / `_FILE` | Base64-encoded random 32-byte AES-256-GCM key                        |
+| `REFRACT_TLS_TERMINATED`           | Must be `1` in production with HTTPS at ingress                      |
+| `REFRACT_RATE_LIMIT`               | Positive requests/key/minute, default `600`; per server process      |
+| `REFRACT_RETENTION_DAYS`           | Optional `1..36500`; hourly run cleanup using server receipt time    |
+| `REFRACT_REDACT_KEYS`              | Additional comma-separated key fragments to remove recursively       |
+| `REFRACT_REDACT_PATTERNS`          | JSON array of Rust regex patterns applied to text                    |
+| `REFRACT_REDACT_EMAILS`            | `1` adds email redaction                                             |
+| `REFRACT_UI_DIR`                   | Native default `apps/viewer/dist`; container `/app/ui`               |
 
 For the secret-capable variables, use either the direct value or the corresponding `_FILE` variable;
 setting both fails startup. Secret files are read at startup, so rotate API keys with an overlap window
@@ -109,13 +109,13 @@ still propagate errors; choose the failure policy that suits your application. S
 
 The service can atomically enqueue persisted snapshots for external delivery:
 
-| Variable | Purpose |
-| --- | --- |
-| `REFRACT_WEBHOOK_URL` | Optional webhook endpoint; HTTPS required in production |
-| `REFRACT_WEBHOOK_SECRET` / `_FILE` | HMAC signing secret; production requires at least 32 bytes |
-| `REFRACT_S3_ENDPOINT` | Optional S3-compatible path-style endpoint; HTTPS in production |
-| `REFRACT_S3_BUCKET`, `REFRACT_S3_REGION` | Bucket and SigV4 region |
-| `REFRACT_S3_ACCESS_KEY` / `_FILE`, `REFRACT_S3_SECRET_KEY` / `_FILE` | Object-storage credentials |
+| Variable                                                             | Purpose                                                         |
+| -------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `REFRACT_WEBHOOK_URL`                                                | Optional webhook endpoint; HTTPS required in production         |
+| `REFRACT_WEBHOOK_SECRET` / `_FILE`                                   | HMAC signing secret; production requires at least 32 bytes      |
+| `REFRACT_S3_ENDPOINT`                                                | Optional S3-compatible path-style endpoint; HTTPS in production |
+| `REFRACT_S3_BUCKET`, `REFRACT_S3_REGION`                             | Bucket and SigV4 region                                         |
+| `REFRACT_S3_ACCESS_KEY` / `_FILE`, `REFRACT_S3_SECRET_KEY` / `_FILE` | Object-storage credentials                                      |
 
 The supplied isolated production profile has no application egress. To enable delivery, attach Refract
 to an explicitly controlled egress network and allow only the destination endpoints. S3 supports static

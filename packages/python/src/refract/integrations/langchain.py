@@ -66,6 +66,17 @@ def langchain_handler(*, provider: str | None = None):
                     event["attributes"]["exception_type"] = type(error).__name__
                 else:
                     value = _json(result)
+                    if isinstance(value, dict) and not isinstance(result, dict):
+                        # LLMResult declares base Generation/BaseMessage types. Pydantic's
+                        # nested dump omits AIMessage usage and tool calls unless we serialize
+                        # the actual message instance, rather than its declared base type.
+                        for originals, serialized in zip(
+                            getattr(result, "generations", []), value.get("generations", [])
+                        ):
+                            for original, generation in zip(originals, serialized):
+                                message = getattr(original, "message", None)
+                                if message is not None and isinstance(generation, dict):
+                                    generation["message"] = _json(message)
                     event["output"] = _snapshot(value)
                     if isinstance(value, dict):
                         details = value.get("llm_output") or {}

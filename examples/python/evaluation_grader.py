@@ -15,7 +15,11 @@ import sys
 
 def grade(request: dict, *, client, model: str) -> dict:
     threshold = request.get("threshold", 0.85)
-    if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
+    if (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not 0 <= threshold <= 1
+    ):
         raise ValueError("threshold must be between 0 and 1")
     response = client.responses.create(
         model=model,
@@ -28,26 +32,39 @@ def grade(request: dict, *, client, model: str) -> dict:
             "Return only the required score and a brief factual explanation."
         ),
         input=json.dumps({"untrusted_left": request["left"], "untrusted_right": request["right"]}),
-        text={"format": {
-            "type": "json_schema", "name": "semantic_grade", "strict": True,
-            "schema": {
-                "type": "object", "additionalProperties": False,
-                "properties": {"score": {"type": "number"}, "reason": {"type": "string"}},
-                "required": ["score", "reason"],
-            },
-        }},
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "semantic_grade",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {"score": {"type": "number"}, "reason": {"type": "string"}},
+                    "required": ["score", "reason"],
+                },
+            }
+        },
         store=False,
     )
     if response.status != "completed":
         raise ValueError("grader response did not complete")
     result = json.loads(response.output_text)
     score = result.get("score")
-    if (isinstance(score, bool) or not isinstance(score, (int, float))
-            or not math.isfinite(score) or not 0 <= score <= 1
-            or not isinstance(result.get("reason"), str)):
+    if (
+        isinstance(score, bool)
+        or not isinstance(score, (int, float))
+        or not math.isfinite(score)
+        or not 0 <= score <= 1
+        or not isinstance(result.get("reason"), str)
+    ):
         raise ValueError("grader returned an invalid score or explanation")
-    return {"score": score, "equivalent": score >= threshold, "reason": result["reason"],
-            "grader": f"openai/{model}"}
+    return {
+        "score": score,
+        "equivalent": score >= threshold,
+        "reason": result["reason"],
+        "grader": f"openai/{model}",
+    }
 
 
 def main() -> None:

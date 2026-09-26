@@ -6,7 +6,9 @@ import refract
 
 Path(".examples").mkdir(exist_ok=True)
 
-with refract.run("policy-rag", path=".examples/rag.rfr", fail_open=False, metadata={"environment": "example"}):
+with refract.run(
+    "policy-rag", path=".examples/rag.rfr", fail_open=False, metadata={"environment": "example"}
+):
     retrieved = refract.event(
         type="retrieval",
         name="Search policy",

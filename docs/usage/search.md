@@ -14,17 +14,17 @@ curl --fail --get "$REFRACT_URL/v1/search" \
   --data-urlencode 'tool=retrieve' --data-urlencode 'min_event_duration_ms=500'
 ```
 
-| Parameter | Behavior |
-| --- | --- |
-| `q` | Case-insensitive substring of run or event names; SQL wildcard characters are literal |
-| `status` | `running`, `completed` or `failed` |
-| `model` | Exact recorded `attributes.model` value |
-| `tool` | Exact name of a `tool.call` event |
-| `min_duration_ms` | Minimum recorded run duration |
-| `min_event_duration_ms` | Minimum event duration; when combined with `tool`, both apply to the same event |
-| `min_cost_usd` | Minimum sum of recorded, nonnegative `cost_usd` observations |
-| `after`, `before` | RFC3339 run start times, inclusive lower and exclusive upper bounds |
-| `limit`, `offset` | 1..1000 items (default 100); nonnegative offset (default 0) |
+| Parameter               | Behavior                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `q`                     | Case-insensitive substring of run or event names; SQL wildcard characters are literal |
+| `status`                | `running`, `completed` or `failed`                                                    |
+| `model`                 | Exact recorded `attributes.model` value                                               |
+| `tool`                  | Exact name of a `tool.call` event                                                     |
+| `min_duration_ms`       | Minimum recorded run duration                                                         |
+| `min_event_duration_ms` | Minimum event duration; when combined with `tool`, both apply to the same event       |
+| `min_cost_usd`          | Minimum sum of recorded, nonnegative `cost_usd` observations                          |
+| `after`, `before`       | RFC3339 run start times, inclusive lower and exclusive upper bounds                   |
+| `limit`, `offset`       | 1..1000 items (default 100); nonnegative offset (default 0)                           |
 
 The response is `{"runs":[...],"total":N,"limit":20,"offset":0}`, ordered by start time descending
 then ID descending. Filters combine with AND. It searches indexed labels, not arbitrary prompt/output

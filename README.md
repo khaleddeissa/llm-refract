@@ -74,7 +74,8 @@ MCP and the UI call the same API. Skills provide operating instructions; they ar
 [Provider coverage](docs/usage/providers.md) · [Instrumentation](docs/usage/python.md) · [Metrics](docs/usage/metrics.md) ·
 [Rerun](docs/usage/rerun.md) · [Evaluation](docs/usage/evaluation.md) · [Operation](docs/production.md)
 
-New capabilities described here are in this checkout; installed registry releases may lag until the next release.
+The current development release is **0.1.4 (unreleased)**. See the [changelog](CHANGELOG.md) for
+features, compatibility changes and security fixes. Registry releases may lag this checkout.
 
 ## Record in your application
 

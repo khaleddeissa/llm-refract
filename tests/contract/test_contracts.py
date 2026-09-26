@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -7,6 +9,22 @@ from referencing import Registry, Resource
 import refract
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_integration_scripts_do_not_shadow_standard_library():
+    # Match direct script execution, without third-party packages masking the failure.
+    subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "import uuid, platform; assert platform.system(); uuid.uuid4()",
+        ],
+        cwd=ROOT / "tests/integration",
+        check=True,
+        capture_output=True,
+        timeout=10,
+    )
 
 
 def validator():

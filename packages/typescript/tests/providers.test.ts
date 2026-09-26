@@ -329,3 +329,80 @@ it("custom normalization failures do not mask provider results or stream chunks"
   });
   expect(run.events[0].status).toBe("completed");
 });
+
+it.each(["__proto__", "prototype", "constructor"])(
+  "rejects unsafe %s segments before patching any methods",
+  (segment) => {
+    for (const path of [
+      [segment],
+      [segment, "toString"],
+      ["nested", segment],
+    ]) {
+      const original = () => "unchanged";
+      const client = { generate: original, nested: {} };
+      const before = Object.getOwnPropertyDescriptors(Object.prototype);
+      expect(() =>
+        instrumentCustom(client, {
+          provider: "custom",
+          methods: [["generate"], path],
+        }),
+      ).toThrow("Unsafe instrumentation property path");
+      expect(client.generate).toBe(original);
+      expect(Object.getOwnPropertyDescriptors(Object.prototype)).toEqual(
+        before,
+      );
+    }
+  },
+);
+
+it("rejects prototype objects reached through ordinary aliases", () => {
+  const original = () => "unchanged";
+  const client = { generate: original, shared: Object.prototype };
+  expect(() =>
+    instrumentCustom(client, {
+      provider: "custom",
+      methods: [["generate"], ["shared", "toString"]],
+    }),
+  ).toThrow("Cannot instrument a prototype object");
+  expect(client.generate).toBe(original);
+});
+
+it("restores inherited methods without leaving an own property", async () => {
+  class Client {
+    generate() {
+      return "result";
+    }
+  }
+  const client = new Client();
+  const original = Client.prototype.generate;
+  const restore = instrumentCustom(client, {
+    provider: "custom",
+    methods: [["generate"]],
+  });
+  expect(Object.hasOwn(client, "generate")).toBe(true);
+  await record(() => expect(client.generate()).toBe("result"));
+  expect(Client.prototype.generate).toBe(original);
+  restore();
+  restore();
+  expect(Object.hasOwn(client, "generate")).toBe(false);
+  expect(client.generate).toBe(original);
+});
+
+it("preserves a method's own property descriptor when restored", () => {
+  const client = {};
+  Object.defineProperty(client, "generate", {
+    value: () => "result",
+    writable: true,
+    enumerable: false,
+    configurable: false,
+  });
+  const descriptor = Object.getOwnPropertyDescriptor(client, "generate");
+  const restore = instrumentCustom(client, {
+    provider: "custom",
+    methods: [["generate"]],
+  });
+  restore();
+  expect(Object.getOwnPropertyDescriptor(client, "generate")).toEqual(
+    descriptor,
+  );
+});

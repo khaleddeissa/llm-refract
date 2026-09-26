@@ -64,6 +64,8 @@ def test_real_chat_model_usage_and_multiple_callbacks_coexist():
             AIMessage(
                 content="Hello",
                 usage_metadata={"input_tokens": 2, "output_tokens": 1, "total_tokens": 3},
+                tool_calls=[{"name": "lookup", "args": {"id": 1}, "id": "call-1"}],
+                response_metadata={"api_key": "must-not-be-recorded"},
             )
         ]
     )
@@ -74,4 +76,8 @@ def test_real_chat_model_usage_and_multiple_callbacks_coexist():
     assert observer.completed == 1
     assert recording.data["events"][0]["attributes"]["input_tokens"] == 2
     assert recording.data["events"][0]["attributes"]["output_tokens"] == 1
+    message = recording.data["events"][0]["output"]["generations"][0][0]["message"]
+    assert message["tool_calls"][0]["name"] == "lookup"
+    assert message["usage_metadata"]["total_tokens"] == 3
+    assert message["response_metadata"]["api_key"] == "[REDACTED]"
     assert handler.errors == []

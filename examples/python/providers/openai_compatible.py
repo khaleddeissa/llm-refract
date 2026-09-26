@@ -18,7 +18,9 @@ def main():
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with OpenAI(base_url=args.base_url, api_key=os.getenv("LLM_API_KEY", "local")) as client:
-        handle = refract.instrument_custom(client.chat.completions, "create", provider=args.provider)
+        handle = refract.instrument_custom(
+            client.chat.completions, "create", provider=args.provider
+        )
         try:
             with refract.run("local-provider", path=args.output, fail_open=False):
                 response = client.chat.completions.create(

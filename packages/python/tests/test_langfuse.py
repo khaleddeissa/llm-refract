@@ -48,16 +48,16 @@ def test_langfuse_observation_mapping_and_context_propagation():
         "output": 1,
         "total": 3,
     }
-    assert json.loads(attrs["langfuse.observation.cost_details"]["stringValue"]) == {
-        "total": 0.001
-    }
+    assert json.loads(attrs["langfuse.observation.cost_details"]["stringValue"]) == {"total": 0.001}
     assert "not-exported" not in json.dumps(document)
     assert from_otlp(document)[0]["events"][1]["output"] == "Hello"
     assert document == to_langfuse(run)
 
 
 @pytest.mark.parametrize("rejected", [False, True])
-def test_langfuse_http_credentials_are_headers_only_and_partial_rejection_fails(monkeypatch, rejected):
+def test_langfuse_http_credentials_are_headers_only_and_partial_rejection_fails(
+    monkeypatch, rejected
+):
     captured = []
 
     class Response:

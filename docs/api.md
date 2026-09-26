@@ -9,26 +9,26 @@ project, environment and role; client headers cannot override them. Reader keys 
 evaluate and perform recorded playback. Writer keys also ingest/fork. Admin keys additionally access
 administrative routes within the same scope. `/v1/health` and `/v1/ready` are unauthenticated.
 
-| Method | Path | Behavior |
-| --- | --- | --- |
-| GET | `/v1/health` | Process health |
-| GET | `/v1/ready` | Database connectivity; 503 when unavailable |
-| POST | `/v1/runs` | Validate/redact/insert one immutable snapshot; 201 or duplicate 409 |
-| POST | `/v1/runs/batch` | Atomic, content-checked idempotent batch of 1..1000 snapshots |
-| GET | `/v1/runs` | Latest 100 snapshots in the key's scope |
-| GET | `/v1/search` | Filter and paginate indexed runs; see [search](usage/search.md) |
-| GET | `/v1/runs/{id}` | Complete snapshot or 404 |
-| GET | `/v1/runs/{id}/events` | Ordered events |
-| GET | `/v1/runs/{id}/metrics` | Recorded cost, tokens, latency and completeness |
-| GET | `/v1/runs/{id}/similar?limit=10` | Lexical Jaccard similarity against latest 1000 scoped candidates |
-| GET | `/v1/runs/{id}/artifact` | Download a checksummed readable `.rfr` |
-| POST | `/v1/runs/{id}/replay` | `{"mode":"exact"}`; recorded steps only |
-| POST | `/v1/runs/{id}/fork` | `{"from_event":"evt_2"}`; persist a prefix snapshot |
-| POST | `/v1/diff` | Structural differences, metric changes and optional semantic report |
-| POST | `/v1/eval` | Compare 1..100 named pairs of stored runs with optional budgets |
-| GET | `/v1/admin/audit?limit=100&offset=0` | Scoped authenticated request audit entries; admin only |
-| POST | `/v1/admin/retention` | `{"days":30}`; delete runs received before the cutoff; admin only |
-| GET | `/v1/admin/outbox` | `{"pending":N}` scoped delivery backlog; admin only |
+| Method | Path                                 | Behavior                                                            |
+| ------ | ------------------------------------ | ------------------------------------------------------------------- |
+| GET    | `/v1/health`                         | Process health                                                      |
+| GET    | `/v1/ready`                          | Database connectivity; 503 when unavailable                         |
+| POST   | `/v1/runs`                           | Validate/redact/insert one immutable snapshot; 201 or duplicate 409 |
+| POST   | `/v1/runs/batch`                     | Atomic, content-checked idempotent batch of 1..1000 snapshots       |
+| GET    | `/v1/runs`                           | Latest 100 snapshots in the key's scope                             |
+| GET    | `/v1/search`                         | Filter and paginate indexed runs; see [search](usage/search.md)     |
+| GET    | `/v1/runs/{id}`                      | Complete snapshot or 404                                            |
+| GET    | `/v1/runs/{id}/events`               | Ordered events                                                      |
+| GET    | `/v1/runs/{id}/metrics`              | Recorded cost, tokens, latency and completeness                     |
+| GET    | `/v1/runs/{id}/similar?limit=10`     | Lexical Jaccard similarity against latest 1000 scoped candidates    |
+| GET    | `/v1/runs/{id}/artifact`             | Download a checksummed readable `.rfr`                              |
+| POST   | `/v1/runs/{id}/replay`               | `{"mode":"exact"}`; recorded steps only                             |
+| POST   | `/v1/runs/{id}/fork`                 | `{"from_event":"evt_2"}`; persist a prefix snapshot                 |
+| POST   | `/v1/diff`                           | Structural differences, metric changes and optional semantic report |
+| POST   | `/v1/eval`                           | Compare 1..100 named pairs of stored runs with optional budgets     |
+| GET    | `/v1/admin/audit?limit=100&offset=0` | Scoped authenticated request audit entries; admin only              |
+| POST   | `/v1/admin/retention`                | `{"days":30}`; delete runs received before the cutoff; admin only   |
+| GET    | `/v1/admin/outbox`                   | `{"pending":N}` scoped delivery backlog; admin only                 |
 
 Requests are limited to 16 MiB. Invalid application data returns 400, invalid keys 401, insufficient
 roles 403, absent/cross-scope runs 404, snapshot conflicts 409 and rate limits 429 with `Retry-After: 60`.

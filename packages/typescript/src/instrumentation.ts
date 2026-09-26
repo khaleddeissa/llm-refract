@@ -174,13 +174,46 @@ function instrument(
     for (const value of Object.values(rate))
       if (!Number.isFinite(value) || value < 0)
         throw new Error("Pricing rates must be finite and nonnegative");
-  const restores: (() => void)[] = [];
-  for (const path of paths) {
+  // Validate every path before patching anything, including later paths in a batch.
+  for (const path of paths)
+    if (
+      !path.length ||
+      path.some(
+        (key) =>
+          typeof key !== "string" ||
+          !key ||
+          key === "__proto__" ||
+          key === "prototype" ||
+          key === "constructor",
+      )
+    )
+      throw new Error("Unsafe instrumentation property path");
+  const targets = paths.flatMap((path) => {
     let target = client as Data;
-    for (const segment of path.slice(0, -1)) target = object(target[segment]);
+    for (const segment of path.slice(0, -1)) {
+      // Nested namespaces must belong to this client, not an inherited prototype.
+      if (!Object.prototype.hasOwnProperty.call(target, segment)) return [];
+      target = object(target[segment]);
+    }
+    const constructor = Object.getOwnPropertyDescriptor(
+      target,
+      "constructor",
+    )?.value;
+    if (typeof constructor === "function" && constructor.prototype === target)
+      throw new Error("Cannot instrument a prototype object");
     const key = path.at(-1)!;
     const original = target[key];
-    if (typeof original !== "function") continue;
+    if (typeof original !== "function") return [];
+    const descriptor = Object.getOwnPropertyDescriptor(target, key);
+    if (
+      (descriptor && (!("value" in descriptor) || !descriptor.writable)) ||
+      (!descriptor && !Object.isExtensible(target))
+    )
+      throw new Error("Instrumentation requires a writable client method");
+    return [{ path, target, key, original, descriptor }];
+  });
+  const restores: (() => void)[] = [];
+  for (const { path, target, key, original, descriptor } of targets) {
     const replacement = function (this: unknown, ...args: unknown[]) {
       const params = object(args[0]);
       let request: { model?: string; input?: Json } = {};
@@ -397,9 +430,19 @@ function instrument(
         return failure(error);
       }
     };
-    target[key] = replacement;
+    Object.defineProperty(target, key, {
+      ...(descriptor ?? {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      }),
+      value: replacement,
+    });
     restores.push(() => {
-      if (target[key] === replacement) target[key] = original;
+      if (Object.getOwnPropertyDescriptor(target, key)?.value !== replacement)
+        return;
+      if (descriptor) Object.defineProperty(target, key, descriptor);
+      else Reflect.deleteProperty(target, key);
     });
   }
   if (!restores.length)
