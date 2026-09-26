@@ -7,6 +7,9 @@ inputs:
   actual:
     description: Newly recorded .rfr or canonical JSON path
     required: true
+  comparison-options:
+    description: Optional JSON file with semantic similarity and cost/latency/token budget thresholds
+    required: false
 branding:
   icon: activity
   color: purple
@@ -23,4 +26,5 @@ runs:
         REFRACT_SOURCE: ${{ github.action_path }}
         REFRACT_BASELINE: ${{ inputs.baseline }}
         REFRACT_ACTUAL: ${{ inputs.actual }}
+        REFRACT_COMPARE_OPTIONS: ${{ inputs.comparison-options }}
       run: python3 "$REFRACT_SOURCE/packages/github-action/compare.py" "$REFRACT_BASELINE" "$REFRACT_ACTUAL" --cli "$REFRACT_SOURCE/target/release/refract"
