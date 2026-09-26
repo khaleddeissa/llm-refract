@@ -1,14 +1,14 @@
 [package]
-name = "refract-collector"
+name = "refract-eval"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-
 [lints]
 workspace = true
-
 [dependencies]
 refract-core = { path = "../refract-core" }
+refract-diff = { path = "../refract-diff" }
+refract-artifact = { path = "../refract-artifact" }
+serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
-regex = "1"

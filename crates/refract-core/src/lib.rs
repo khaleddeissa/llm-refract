@@ -1,5 +1,7 @@
+pub mod metrics;
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
+pub use metrics::{Metrics, compare_metrics, metrics};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -143,17 +145,25 @@ pub fn redact(value: &mut Value) {
         Value::Object(map) => {
             for (key, value) in map {
                 let key = key.to_lowercase().replace('-', "_");
-                if [
-                    "password",
-                    "secret",
-                    "token",
-                    "api_key",
-                    "authorization",
-                    "cookie",
-                    "email",
-                ]
-                .iter()
-                .any(|s| key.contains(s))
+                if !(matches!(
+                    key.as_str(),
+                    "input_tokens"
+                        | "output_tokens"
+                        | "cache_read_tokens"
+                        | "cache_write_tokens"
+                        | "total_tokens"
+                ) && value.as_u64().is_some())
+                    && [
+                        "password",
+                        "secret",
+                        "token",
+                        "api_key",
+                        "authorization",
+                        "cookie",
+                        "email",
+                    ]
+                    .iter()
+                    .any(|s| key.contains(s))
                 {
                     *value = Value::String("[REDACTED]".into());
                 } else {
