@@ -20,9 +20,9 @@ if key:
     headers["Authorization"] = "Bearer " + key
 
 
-def api(path, body=None):
+def api(path, body=None, method=None):
     request = urllib.request.Request(
-        endpoint + path, None if body is None else json.dumps(body).encode(), headers
+        endpoint + path, None if body is None else json.dumps(body).encode(), headers, method=method
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         return json.load(response)
@@ -63,6 +63,7 @@ result = api(
     },
 )
 assert result["passed"], result
+api("/v1/runs/" + baseline["id"] + "/embedding", {"model": name, "values": [1, 0]}, method="PUT")
 # An ambiguous HTTP response can cause a transport retry; identical snapshots stay idempotent.
 receipt = api("/v1/runs/batch", {"runs": [baseline, candidate]})
 assert receipt["accepted"] == 0, receipt
@@ -79,6 +80,11 @@ async def check_mcp():
         result = await session.call_tool("run_metrics", {"run_id": baseline["id"]})
         assert not result.isError, result
         assert json.loads(result.content[0].text)["total_tokens"] == 14
+        result = await session.call_tool(
+            "vector_search", {"model": name, "values": [1, 0], "limit": 1}
+        )
+        assert not result.isError, result
+        assert baseline["id"] in result.content[0].text
 
 
 asyncio.run(check_mcp())

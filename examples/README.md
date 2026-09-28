@@ -44,3 +44,13 @@ New experiment examples: [dataset evaluation](evaluation/README.md),
 See [provider coverage](../docs/usage/providers.md) and [OpenTelemetry](../docs/usage/otel.md) for
 supported methods, export boundaries and production configuration. Live provider examples may incur
 the provider's normal charges; test suites use intercepted HTTP or deterministic fixtures.
+
+## Release controls and recovery
+
+- `uv run python examples/python/pricing.py`: offline synthetic price estimates and invoice differences.
+- [Advanced adapters](../docs/usage/advanced-integrations.md): Foundry, native Bedrock, Realtime, local
+  inference and LangGraph checkpoint continuation in application code.
+- [Service control requests](../docs/usage/service-controls.md): vectors, managed keys, OIDC/SSO,
+  audit expiry, key rotation and PostgreSQL RLS.
+- `make test-recovery`: disposable migration/backup/restore/load/shutdown rehearsal; scenario and fixture
+  provenance are described in [recovery](../docs/usage/recovery.md).
