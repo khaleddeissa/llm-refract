@@ -119,3 +119,36 @@ def test_sdk_fail_open_and_strict_modes(monkeypatch):
         refract.run("app", endpoint="http://collector"),
     ):
         raise ValueError("application")
+
+
+def test_durable_acceptance_survives_worker_not_running(tmp_path, monkeypatch):
+    import json
+    import os
+    import threading
+
+    from refract import run
+    from refract.exporter import BackgroundExporter
+
+    monkeypatch.setattr(threading.Thread, "start", lambda self: None)
+    fsync_calls = []
+    original = os.fsync
+
+    def synced(fd):
+        fsync_calls.append(fd)
+        original(fd)
+
+    monkeypatch.setattr(os, "fsync", synced)
+    with run("durable-offline") as recording:
+        pass
+    exporter = BackgroundExporter("http://localhost:1", spool_dir=tmp_path, durable=True)
+    assert exporter.submit(recording.snapshot())
+    paths = list(tmp_path.glob("*.json"))
+    assert len(paths) == 1
+    assert json.loads(paths[0].read_text())["id"] == recording.data["id"]
+    assert len(fsync_calls) == 2  # file contents and directory rename
+    assert exporter._queue.empty()
+    full = BackgroundExporter(
+        "http://localhost:1", spool_dir=tmp_path, durable=True, max_spool_bytes=1
+    )
+    assert not full.submit(recording.snapshot())
+    assert full.stats["accepted"] == 0

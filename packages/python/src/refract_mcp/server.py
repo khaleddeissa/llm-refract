@@ -193,3 +193,21 @@ def similar_runs(run_id: str, limit: int = 10) -> dict:
     if not 1 <= limit <= 100:
         raise ValueError("limit must be between 1 and 100")
     return api(run_path(run_id) + "/similar?" + urllib.parse.urlencode({"limit": limit}))
+
+
+@mcp.tool(annotations=READ)
+def vector_search(model: str, values: list[float], limit: int = 20) -> list[dict]:
+    """Find recorded runs using an application-supplied embedding in the active tenant scope."""
+    import math
+
+    if not model.strip() or len(model) > 256 or not 1 <= len(values) <= 4096:
+        raise ValueError("invalid embedding model or dimensions")
+    if (
+        not 1 <= limit <= 100
+        or not any(values)
+        or any(not math.isfinite(v) or abs(v) > 1e10 for v in values)
+    ):
+        raise ValueError("invalid embedding values or result limit")
+    return api(
+        "/v1/search/vector", {"embedding": {"model": model, "values": values}, "limit": limit}
+    )

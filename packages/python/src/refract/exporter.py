@@ -20,7 +20,8 @@ class BackgroundExporter:
     """Submit snapshots without network/disk I/O on the application's thread.
 
     The worker spools before transmitting. A process crash before that worker write can
-    lose queued events; this is a retry spool, not a synchronous write-ahead guarantee.
+    lose queued events. durable=True instead fsyncs the redacted snapshot and directory
+    before submit returns True; it requires a dedicated POSIX spool and adds disk latency.
     Use one exporter per spool directory and call close during graceful shutdown.
     """
 
@@ -37,6 +38,7 @@ class BackgroundExporter:
         timeout: float = 5.0,
         retries: int = 2,
         spool_dir: str | Path | None = None,
+        durable: bool = False,
         max_spool_bytes: int = 64 * 1024 * 1024,
         max_queue_bytes: int = 16 * 1024 * 1024,
     ):
@@ -55,6 +57,11 @@ class BackgroundExporter:
         self.batch_size, self.sample_rate = batch_size, sample_rate
         self.flush_interval, self.timeout, self.retries = flush_interval, timeout, retries
         self.spool_dir = Path(spool_dir) if spool_dir is not None else None
+        if durable and self.spool_dir is None:
+            raise ValueError("durable acceptance requires spool_dir")
+        if durable and os.name != "posix":
+            raise ValueError("durable directory synchronization requires POSIX")
+        self.durable = durable
         self.max_spool_bytes, self.max_queue_bytes = max_spool_bytes, max_queue_bytes
         self._queue: queue.Queue[bytes] = queue.Queue(queue_size)
         self._lock = threading.Lock()
@@ -82,6 +89,11 @@ class BackgroundExporter:
                 if self._closed or self._queued_bytes + len(body) > self.max_queue_bytes:
                     self.stats["dropped"] += 1
                     return False
+                if self.durable:
+                    self._spool(body)
+                    self.stats["accepted"] += 1
+                    self._wake.set()
+                    return True
                 try:
                     self._queue.put_nowait(body)
                 except queue.Full:
@@ -115,6 +127,12 @@ class BackgroundExporter:
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(target)
+        if self.durable:
+            descriptor = os.open(self.spool_dir, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
         return target
 
     def _transmit(self, entries: list[tuple[bytes, Path | None]]) -> bool:
@@ -190,6 +208,14 @@ class BackgroundExporter:
             if not self._queue.empty():
                 self._wake.set()
             if self._stop.is_set() and self._queue.empty():
+                if (
+                    self.durable
+                    and self.last_error is None
+                    and self.spool_dir
+                    and any(self.spool_dir.glob("*.json"))
+                ):
+                    self._wake.set()
+                    continue
                 return
 
     def flush(self, timeout: float = 10.0) -> bool:

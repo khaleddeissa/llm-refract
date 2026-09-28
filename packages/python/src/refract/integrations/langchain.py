@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 
 from refract import _current, _snapshot
-from refract.instrumentation import _json, _usage
+from refract.instrumentation import _framework_generation, _json, _usage
 
 
 def langchain_handler(*, provider: str | None = None):
@@ -32,6 +32,7 @@ def langchain_handler(*, provider: str | None = None):
         def __init__(self):
             self.spans: dict[str, tuple[dict, float]] = {}
             self.errors: list[str] = []
+            self.generation_tokens = {}
 
         def _start(self, kind, serialized, payload, run_id, parent_run_id=None, **kwargs):
             try:
@@ -54,6 +55,10 @@ def langchain_handler(*, provider: str | None = None):
                     replay_policy="REQUIRES_APPROVAL" if kind == "tool.call" else "RECORDED",
                 )
                 self.spans[str(run_id)] = (recording.data["events"][-1], time.perf_counter())
+                if kind == "generation":
+                    self.generation_tokens[str(run_id)] = _framework_generation.set(
+                        (recording, recording.data["events"][-1])
+                    )
             except Exception as error:
                 self.errors.append(type(error).__name__)
 
@@ -99,6 +104,14 @@ def langchain_handler(*, provider: str | None = None):
                             event["attributes"].setdefault(key, count)
             except Exception as failure:
                 self.errors.append(type(failure).__name__)
+            finally:
+                token = self.generation_tokens.pop(str(run_id), None)
+                if token is not None:
+                    try:
+                        _framework_generation.reset(token)
+                    except ValueError:
+                        # Some frameworks dispatch completion in a copied context.
+                        _framework_generation.set(None)
 
         def on_chain_start(self, serialized, inputs, *, run_id, parent_run_id=None, **kwargs):
             self._start("decision", serialized, inputs, run_id, parent_run_id, **kwargs)

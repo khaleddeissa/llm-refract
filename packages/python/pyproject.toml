@@ -26,6 +26,7 @@ bedrock = ["boto3>=1.35"]
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.40"]
 langchain = ["langchain-core>=0.3"]
+langgraph = ["langgraph>=1.0"]
 otel = ["opentelemetry-sdk>=1.30"]
 mcp = ["mcp>=1.26,<2"]
 

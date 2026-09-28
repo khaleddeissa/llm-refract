@@ -50,7 +50,7 @@ for async patterns, redaction, failure capture and submitting to a remote endpoi
 
 ## MCP server
 
-Executable stdio interface to the Rust Refract API: thirteen read-only tools, plus import/fork tools when
+Executable stdio interface to the Rust Refract API: fourteen read-only tools, plus import/fork tools when
 `REFRACT_MCP_ALLOW_WRITES=1`. Requires the `mcp` extra above. Start with:
 
 ```bash

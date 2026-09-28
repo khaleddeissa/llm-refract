@@ -334,3 +334,31 @@ def trace(fn=None, *, name: str | None = None):
         return synchronous
 
     return decorate(fn) if fn else decorate
+
+
+def instrument_bedrock_native(client, **kwargs):
+    """Observe native Bedrock InvokeModel APIs without draining response bodies."""
+    from .integrations.adapters import instrument_bedrock_native as install
+
+    return install(client, **kwargs)
+
+
+def instrument_vertex(model, **kwargs):
+    """Observe an existing vertexai GenerativeModel instance."""
+    from .integrations.adapters import instrument_vertex as install
+
+    return install(model, **kwargs)
+
+
+def instrument_library(client, library: str, **kwargs):
+    """Observe Ollama, Hugging Face, llama.cpp or LiteLLM clients."""
+    from .integrations.adapters import instrument_library as install
+
+    return install(client, library, **kwargs)
+
+
+def instrument_realtime(connection, **kwargs):
+    """Observe an existing Realtime connection without retaining binary audio."""
+    from .integrations.realtime import instrument_realtime as install
+
+    return install(connection, **kwargs)

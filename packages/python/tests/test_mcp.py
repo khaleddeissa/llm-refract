@@ -48,7 +48,7 @@ def test_real_stdio_handshake_and_discovery(writes):
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
-            assert len(tools.tools) == (15 if writes else 13)
+            assert len(tools.tools) == (16 if writes else 14)
             names = {t.name for t in tools.tools}
             assert ("fork_run" in names) == writes
             assert ("import_run" in names) == writes
@@ -72,3 +72,11 @@ def test_metrics_and_comparison_forward_options():
         assert request.call_args.args[0] == "/v1/runs/a%2Fb/metrics"
     with pytest.raises(ValueError):
         server.search_runs(limit=1001)
+
+
+def test_vector_search_preserves_scope_and_validates_measurements():
+    with patch.object(server, "api", return_value=[]) as request:
+        assert server.vector_search("local-v1", [0.2, 0.7], 5) == []
+        assert request.call_args.args[0] == "/v1/search/vector"
+    with pytest.raises(ValueError):
+        server.vector_search("local-v1", [float("nan")])

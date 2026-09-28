@@ -9,9 +9,14 @@ import json
 import time
 from collections import deque
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Any
 
 from . import Run, _current, _snapshot
+
+_framework_generation: ContextVar[tuple[Any, dict] | None] = ContextVar(
+    "refract_framework_generation", default=None
+)
 
 
 def _json(value: Any) -> Any:
@@ -63,7 +68,7 @@ def _usage(payload: dict) -> dict[str, Any]:
 
 class Instrumentation:
     def __init__(self, *, exporter=None, pricing: dict | None = None):
-        self.exporter, self.pricing = exporter, pricing or {}
+        self.exporter, self.pricing = exporter, {} if pricing is None else pricing
         self.completed_runs: deque[dict] = deque(maxlen=100)
         self.errors: deque[str] = deque(maxlen=100)
         self._patches: list[tuple[Any, str, Any, Any]] = []
@@ -154,6 +159,18 @@ class Instrumentation:
                     if capture:
                         capture.finish(error=error)
                     raise
+                if inspect.isawaitable(result):
+
+                    async def resolve():
+                        try:
+                            value = await result
+                        except BaseException as error:
+                            if capture:
+                                capture.finish(error=error)
+                            raise
+                        return finish(value, capture, kwargs)
+
+                    return resolve()
                 return finish(result, capture, kwargs)
 
             wrapper = synchronous
@@ -194,6 +211,20 @@ class _Capture:
                 "tool_choice",
             }
         }
+        framework = _framework_generation.get()
+        if (
+            framework
+            and framework[0] is self.run
+            and framework[1]["status"] == "running"
+            and not framework[1]["attributes"].get("provider_instrumented")
+        ):
+            self.event = framework[1]
+            self.id = self.event["id"]
+            self.event["attributes"].update(
+                {"provider": provider, "model": kwargs.get("model", "unknown")}
+            )
+            self.event["attributes"]["provider_instrumented"] = True
+            return
         self.id = self.run.event(
             type="generation",
             name=f"{provider}/{kwargs.get('model', 'unknown')}",
@@ -404,6 +435,8 @@ class _Capture:
                 )
         # Supplied tool results are evidence of prior execution, not tools executed by this SDK.
         prompt = self.event["input"]
+        if not isinstance(prompt, dict):
+            return
         for message in prompt.get("messages", prompt.get("input", [])) or []:
             if not isinstance(message, dict):
                 continue
