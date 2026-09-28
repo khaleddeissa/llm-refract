@@ -13,6 +13,13 @@ the server listens. SQLx records versions/checksums in `_sqlx_migrations` and re
   event indexes, audit history and durable delivery outbox. Existing data moves into
   `local/default/development`; startup backfills event indexes and derived metrics.
 
+- `0003_service_controls.sql`: shared rate buckets, encrypted vectors and outbox lease tokens.
+- `0004_identities.sql`: managed key digests and provisioned OIDC subjects.
+- `0005_trace_assembly.sql`: durable scoped trace/span assembly.
+
+The optional PostgreSQL RLS policy is deployment configuration in `deploy/production/row-security.sql`;
+apply it after migrations with a separate restricted runtime role.
+
 Before enabling retention on an upgraded database, inspect the imported data: legacy rows use their
 original start time as the receipt-time fallback because no receipt timestamp previously existed.
 New ingestion always uses server receipt time, preventing caller-supplied timestamps from controlling
@@ -36,7 +43,7 @@ search and encryption with SQLite. For the actual PostgreSQL backend, CI creates
 
 ```bash
 export REFRACT_TEST_POSTGRES_URL=postgres://refract:password@localhost:5432/refract_test
-cargo test -p refract-storage postgres_platform_contract -- --ignored --nocapture
+cargo test -p refract-storage postgres_ -- --ignored --nocapture
 ```
 
 The PostgreSQL contract is explicitly ignored in normal local runs; selecting it requires the URL.
@@ -49,3 +56,7 @@ startup but does not sanitize old backups/WAL pages. See [production operations]
 
 References: [SQLx embedded migrations](https://docs.rs/sqlx/latest/sqlx/macro.migrate.html),
 [SQLx CLI](https://github.com/launchbadge/sqlx/tree/main/sqlx-cli).
+
+The disposable [recovery rehearsal](../tests/integration/recovery.py) upgrades an original v1 database,
+verifies existing recordings, backs up committed WAL data, restores into a fresh file and tests key
+rotation plus graceful and forced shutdown. Run `make test-recovery` after building the server.

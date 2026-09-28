@@ -417,3 +417,10 @@ assert live cloud acceptance or provisioning.
   sampling, token preservation, strict/fail-open behavior, retries, queue overflow and spool recovery.
 
 Build the SDK before examples. Generated files live under `.examples/`.
+
+## Additional adapters and durable acceptance
+
+See [advanced integrations](advanced-integrations.md) for native Bedrock, local libraries and Realtime.
+`node examples/typescript/providers/extensions.mjs` records synthetic local/chat and Realtime events
+offline. [Service controls](service-controls.md) explains `BatchExporter` durable acceptance, byte quotas,
+restart behavior and the external delivery guarantees.

@@ -28,6 +28,7 @@
 | `run_metrics`           | Measured usage, cost, latency and coverage                            |
 | `evaluate_runs`         | Grade named stored run pairs with semantic/budget options             |
 | `similar_runs`          | Lexically rank related executions                                     |
+| `vector_search`         | Search supplied model/dimension vectors in the authenticated scope    |
 | `replay_recorded`       | Return captured outputs, with BLOCKED policy enforcement              |
 
 The `refract://capabilities` resource reports the transport and restrictions.
@@ -51,6 +52,6 @@ changes. `evaluate_runs` accepts named `{name,left,right}` pairs and evaluation 
 `model`, `tool`, `min_duration_ms`, `limit` and `offset`; it is no longer limited to filtering a local
 100-run window. All queries remain within the key's scope.
 
-There are thirteen read tools and two opt-in write tools. Executable rerun is available through trusted
+There are fourteen read tools and two opt-in write tools. Executable rerun is available through trusted
 SDK/CLI executors, while MCP intentionally remains an evidence/query interface and never executes
 arbitrary commands from a tool argument or recording.

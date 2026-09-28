@@ -13,7 +13,7 @@ See [provider integrations](usage/providers.md) and [Python](usage/python.md)/[N
 | Local service  | `docker compose up --build -d --wait`                             | Loopback-only Inspector/API with SQLite and a persistent volume                       |
 | Shared service | `REFRACT_MODE=production`, scoped keys, encryption, HTTPS ingress | Authenticated applications and teams; PostgreSQL recommended for concurrent workloads |
 
-Production mode refuses startup unless API keys, a valid encryption key and
+Production mode refuses startup unless API keys or OIDC, a valid encryption key, and
 `REFRACT_TLS_TERMINATED=1` are present. The TLS flag is the operator's assertion that a proxy terminates
 HTTPS; the server itself speaks HTTP. Never publish its backend port directly. The deployment profile
 below publishes only Caddy and puts Refract/PostgreSQL on an internal Docker network.
@@ -72,26 +72,32 @@ Request headers cannot change that scope. Even an admin key administers only its
 
 ## Configuration reference
 
-| Variable                           | Meaning/default                                                      |
-| ---------------------------------- | -------------------------------------------------------------------- |
-| `REFRACT_MODE`                     | `local` or `production`; default `local`                             |
-| `REFRACT_BIND`                     | Native default `127.0.0.1:8000`; container listens on `0.0.0.0:8000` |
-| `REFRACT_DATABASE_URL` / `_FILE`   | SQLite or PostgreSQL URL; default `sqlite://refract.db`              |
-| `REFRACT_API_KEYS` / `_FILE`       | JSON array of scoped API keys; schema/example above                  |
-| `REFRACT_REQUIRE_AUTH`             | `1` requires keys even in local mode                                 |
-| `REFRACT_ENCRYPTION_KEY` / `_FILE` | Base64-encoded random 32-byte AES-256-GCM key                        |
-| `REFRACT_TLS_TERMINATED`           | Must be `1` in production with HTTPS at ingress                      |
-| `REFRACT_RATE_LIMIT`               | Positive requests/key/minute, default `600`; per server process      |
-| `REFRACT_RETENTION_DAYS`           | Optional `1..36500`; hourly run cleanup using server receipt time    |
-| `REFRACT_REDACT_KEYS`              | Additional comma-separated key fragments to remove recursively       |
-| `REFRACT_REDACT_PATTERNS`          | JSON array of Rust regex patterns applied to text                    |
-| `REFRACT_REDACT_EMAILS`            | `1` adds email redaction                                             |
-| `REFRACT_UI_DIR`                   | Native default `apps/viewer/dist`; container `/app/ui`               |
+| Variable                                                                | Meaning/default                                                       |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `REFRACT_MODE`                                                          | `local` or `production`; default `local`                              |
+| `REFRACT_BIND`                                                          | Native default `127.0.0.1:8000`; container listens on `0.0.0.0:8000`  |
+| `REFRACT_DATABASE_URL` / `_FILE`                                        | SQLite or PostgreSQL URL; default `sqlite://refract.db`               |
+| `REFRACT_API_KEYS` / `_FILE`                                            | JSON array of scoped API keys; schema/example above                   |
+| `REFRACT_REQUIRE_AUTH`                                                  | `1` requires API keys or OIDC even in local mode                      |
+| `REFRACT_ENCRYPTION_KEY` / `_FILE`                                      | Base64-encoded random 32-byte AES-256-GCM key                         |
+| `REFRACT_ENCRYPTION_KEYS_FILE`                                          | Alternative private JSON keyring with active key ID                   |
+| `REFRACT_ENCRYPTION_ROTATE_BATCH`                                       | Optional automatic rotation batch, 1–1000 rows per table/scope        |
+| `REFRACT_RUNTIME_DATABASE_URL` / `_FILE`                                | Optional restricted PostgreSQL connection after applying RLS policies |
+| `REFRACT_OIDC_ISSUER`, `REFRACT_OIDC_AUDIENCE`, `REFRACT_OIDC_JWKS_URL` | JWT issuer, API audience and explicit HTTPS public-key endpoint       |
+| `REFRACT_TLS_TERMINATED`                                                | Must be `1` in production with HTTPS at ingress                       |
+| `REFRACT_RATE_LIMIT`                                                    | Positive requests/key/minute, default `600`; shared database quota    |
+| `REFRACT_RETENTION_DAYS`                                                | Optional `1..36500`; hourly run cleanup using server receipt time     |
+| `REFRACT_REDACT_KEYS`                                                   | Additional comma-separated key fragments to remove recursively        |
+| `REFRACT_REDACT_PATTERNS`                                               | JSON array of Rust regex patterns applied to text                     |
+| `REFRACT_REDACT_EMAILS`                                                 | `1` adds email redaction                                              |
+| `REFRACT_UI_DIR`                                                        | Native default `apps/viewer/dist`; container `/app/ui`                |
 
 For the secret-capable variables, use either the direct value or the corresponding `_FILE` variable;
 setting both fails startup. Secret files are read at startup, so rotate API keys with an overlap window
-and service restart. Encryption key rotation needs an explicit decrypt/re-encrypt migration; replacing
-the key alone makes existing payloads unreadable and is rejected at startup.
+and service restart. Managed API keys rotate through the admin API. Encryption keyrings support bounded API-driven or
+automatic background rotation; replacing the only key makes existing payloads unreadable and is
+rejected at startup. See [service controls](usage/service-controls.md) for complete OIDC/SSO, rotation
+and PostgreSQL RLS configuration.
 
 AES-GCM protects the complete execution payload with the scope and run ID authenticated as associated
 data. Searchable names, IDs, timestamps, model names, durations, costs and audit metadata remain visible
@@ -102,9 +108,10 @@ SQLite free pages/WAL and exported `.rfr` files are not retroactively encrypted.
 ## Delivery, retention and application reliability
 
 Python `BackgroundExporter` and Node `BatchExporter` support bounded background queues, batches,
-retries and optional private disk spools. Python also provides deterministic sampling and byte limits.
+retries and optional private disk spools. Both exporters offer queue/spool byte limits and optional fsync acceptance; Python also provides deterministic sampling.
 Call `close()`/`shutdown()` during graceful application shutdown; monitor exporter counters and failures.
-These are retry spools, not guarantees against a crash before persistence. Direct synchronous exports
+The default Python retry spool has a crash window before persistence. Use `durable=True` with a
+private POSIX spool to fsync before acceptance; check the returned boolean when durability is required. Direct synchronous exports
 still propagate errors; choose the failure policy that suits your application. See the SDK guides.
 
 The service can atomically enqueue persisted snapshots for external delivery:
@@ -118,9 +125,8 @@ The service can atomically enqueue persisted snapshots for external delivery:
 | `REFRACT_S3_ACCESS_KEY` / `_FILE`, `REFRACT_S3_SECRET_KEY` / `_FILE` | Object-storage credentials                                      |
 
 The supplied isolated production profile has no application egress. To enable delivery, attach Refract
-to an explicitly controlled egress network and allow only the destination endpoints. S3 supports static
-SigV4 credentials; temporary STS session tokens and workload-identity credential discovery are not yet
-implemented. The external bucket must already exist and allow PUT/DELETE for the configured prefix.
+to an explicitly controlled egress network and allow only the destination endpoints. S3 supports static/STS credentials (including `REFRACT_S3_SESSION_TOKEN`) and the AWS SDK
+workload credential chain when explicit keys are omitted. The external bucket must already exist and allow PUT/DELETE for the configured prefix.
 
 Delivery uses a durable database outbox, 120-second leases, 30-second HTTP timeouts and capped retry
 backoff. It is **at least once**: webhook consumers must deduplicate `x-refract-delivery-id` and validate
@@ -131,8 +137,8 @@ that string remains encrypted; this is not an `.rfr` export. S3 stores the same 
 Do not assume total ordering across concurrent workers. Drain pending jobs before removing a target.
 
 Monitor `/v1/ready`, authenticated `/v1/admin/outbox`, authenticated `/v1/admin/audit`, reverse-proxy
-logs and exporter failures. Retention removes runs/events and queues object deletion; it does not expire
-audit history or historical backups. Authenticated requests are audited after execution, including role
+logs and exporter failures. Retention removes runs/events and queues object deletion; audit expiry is configured separately through `/v1/admin/audit/expire`, and historical backup expiry
+remains an operator responsibility. Authenticated requests are audited after execution, including role
 and rate-limit rejections. Invalid/absent credentials and health requests are not scoped audit entries;
 retain ingress access logs for those events. An audit-write failure returns HTTP 500 even if a mutation
 already committed; batch retries are content-checked and idempotent.
@@ -145,16 +151,28 @@ database contract:
 
 ```bash
 export REFRACT_TEST_POSTGRES_URL=postgres://refract:password@localhost:5432/refract_test
-cargo test -p refract-storage postgres_platform_contract -- --ignored --nocapture
+cargo test -p refract-storage postgres_ -- --ignored --nocapture
 ```
 
 CI supplies PostgreSQL for that test. The normal suite explicitly skips it without a database. Before
 rollout, test backup restore and upgrades, TLS/DNS, your real S3/webhook destination, provider credentials,
 traffic limits and shutdown behavior in your environment. These checks do not establish an uptime SLA
-or compliance certification. Per-process rate limits need an ingress limit for a replicated service;
-there is no SSO, user provisioning, key-management API, database row-level security or audit export/expiry
-policy. Transport/database credentials and backup lifecycle remain deployment responsibilities.
+or compliance certification. Shared rate limits, OIDC bearer authentication, subject provisioning, managed keys and audit export/expiry
+are implemented. Browser PKCE login, keyring rotation and optional PostgreSQL row-level security are implemented and
+covered by local tests. See [backup and recovery](usage/recovery.md) for repeatable deployment rehearsals. Transport/database credentials and backup lifecycle remain deployment responsibilities.
 
 The API performs recorded playback and prefix forks; it does not run arbitrary provider/tool code on the
 service. Executable reruns use explicitly registered handlers in your application or CLI, with approvals
 for declared side effects. See [rerun](usage/rerun.md) and [migration operations](migrations.md).
+
+## 0.1.4 service extensions
+
+See [shared service controls](usage/service-controls.md) for OIDC subject provisioning, managed key
+rotation/revocation, shared database quotas, vector search, audit export/expiry, durable acceptance and
+AWS temporary/workload credentials. Current validation uses local/mock services only; live identity,
+provider credentials and infrastructure remain deployment acceptance checks.
+
+The Caddy profile uses an [HTTP/2 cleartext upstream](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
+on the private service network so HTTPS gRPC clients reach the same native receiver. Permit controlled
+HTTPS egress to JWKS and workload credential endpoints when enabling those integrations; the default
+internal network blocks outbound traffic. Browser token exchange also requires identity-provider CORS.

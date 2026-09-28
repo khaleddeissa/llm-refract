@@ -33,7 +33,7 @@ administrative routes within the same scope. `/v1/health` and `/v1/ready` are un
 Requests are limited to 16 MiB. Invalid application data returns 400, invalid keys 401, insufficient
 roles 403, absent/cross-scope runs 404, snapshot conflicts 409 and rate limits 429 with `Retry-After: 60`.
 Unknown body fields are rejected. Missing metric observations remain explicit; no pricing catalogue is
-used to invent costs. Similarity is a bounded, offline lexical ranking, not an embedding/vector search.
+used to invent costs. The similar-runs route uses lexical ranking; `/v1/search/vector` provides a separate exact vector index.
 
 ## HTTP examples
 
@@ -78,6 +78,24 @@ A diff response contains `first_divergence`, `differences`, `metric_changes` and
 are supported by local [evaluation](usage/evaluation.md), not executed by the HTTP server.
 
 The export content type is `application/vnd.refract.rfr`. POST ingestion expects execution JSON,
-not the artifact header/body encoding: decode/validate the file first. There are no gRPC or OTLP
-receiver endpoints; use the SDK [OTLP JSON bridge](usage/otel.md) when integrating observability systems.
+not the artifact header/body encoding: decode/validate the file first. Native HTTP/protobuf and gRPC trace receivers are documented in [OpenTelemetry](usage/otel.md).
 [Production configuration](production.md) documents secrets, roles, TLS, databases and delivery.
+
+## Service extension routes
+
+| Method     | Path                          | Purpose                                          |
+| ---------- | ----------------------------- | ------------------------------------------------ |
+| GET        | `/v1/auth/config`             | Public browser SSO configuration; no credentials |
+| POST       | `/v1/traces`                  | OTLP HTTP JSON/protobuf ingestion; writer        |
+| PUT        | `/v1/runs/{id}/embedding`     | Store a model-namespaced vector; writer          |
+| POST       | `/v1/search/vector`           | Exact scoped cosine search; reader               |
+| GET / POST | `/v1/admin/keys`              | List key metadata / issue a scoped expiring key  |
+| DELETE     | `/v1/admin/keys/{id}`         | Revoke a managed key                             |
+| PUT        | `/v1/admin/principals`        | Provision or disable an OIDC subject             |
+| GET        | `/v1/admin/audit/export`      | Bounded NDJSON export page                       |
+| POST       | `/v1/admin/audit/expire`      | Expire audit history by age                      |
+| POST       | `/v1/admin/encryption/rotate` | Re-encrypt a bounded batch per payload table     |
+
+All `/v1/admin` routes require admin role in the current scope. See [service controls](usage/service-controls.md)
+for request bodies, limits and operating procedures. Native gRPC uses the standard TraceService Export
+route on the same port. It does not accept execution `.rfr` files.

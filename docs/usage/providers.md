@@ -6,23 +6,25 @@ an offline `.rfr`, inspected locally, or exported to an authenticated production
 
 ## Supported instrumentation
 
-| Provider or framework                   | Python                                  | Node / TypeScript                      | Covered surface                                                        |
-| --------------------------------------- | --------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
-| OpenAI                                  | `instrument_openai()`                   | `instrumentOpenAI(client)`             | Responses and Chat Completions, including streaming                    |
-| Anthropic                               | `instrument_anthropic()`                | `instrumentAnthropic(client)`          | Messages API and streaming                                             |
-| Azure OpenAI                            | `instrument_azure(client)`              | `instrumentAzureOpenAI(client)`        | Configured OpenAI-compatible client                                    |
-| Gemini                                  | `instrument_google(client)`             | `instrumentGemini(client)`             | Google Gen AI content generation and streaming                         |
-| Vertex AI                               | `instrument_google(client)`             | `instrumentVertex(client)`             | Google Gen AI client configured for Vertex                             |
-| Amazon Bedrock                          | `instrument_bedrock(client)`            | `instrumentBedrock(client)`            | Boto3 Converse/ConverseStream; AWS SDK v3 Converse commands            |
-| Ollama, vLLM, compatible gateways       | OpenAI or custom adapter                | OpenAI or custom adapter               | Compatible Chat Completions/Responses methods provided by the endpoint |
-| Local weights, custom or private models | `instrument_custom(owner, method, ...)` | `instrumentCustom(client, options)`    | Explicit methods and response normalization                            |
-| LangChain                               | `langchain_handler()`                   | Explicit SDK spans or OTLP JSON bridge | Python chain, model, retrieval and tool callbacks                      |
-| Langfuse                                | `to_langfuse` / `export_langfuse`       | `toLangfuse` / `exportLangfuse`        | Completed recordings exported through OTLP/HTTP JSON                   |
+| Provider or framework                   | Python                                   | Node / TypeScript                      | Covered surface                                                        |
+| --------------------------------------- | ---------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
+| OpenAI                                  | `instrument_openai()`                    | `instrumentOpenAI(client)`             | Responses and Chat Completions, including streaming                    |
+| Anthropic                               | `instrument_anthropic()`                 | `instrumentAnthropic(client)`          | Messages API and streaming                                             |
+| Azure OpenAI                            | `instrument_azure(client)`               | `instrumentAzureOpenAI(client)`        | Configured OpenAI-compatible client                                    |
+| Gemini                                  | `instrument_google(client)`              | `instrumentGemini(client)`             | Google Gen AI content generation and streaming                         |
+| Vertex AI                               | `instrument_google(client)`              | `instrumentVertex(client)`             | Google Gen AI client configured for Vertex                             |
+| Amazon Bedrock                          | `instrument_bedrock(client)`             | `instrumentBedrock(client)`            | Boto3 Converse/ConverseStream; AWS SDK v3 Converse commands            |
+| Ollama, vLLM, compatible gateways       | OpenAI or custom adapter                 | OpenAI or custom adapter               | Compatible Chat Completions/Responses methods provided by the endpoint |
+| Local weights, custom or private models | `instrument_custom(owner, method, ...)`  | `instrumentCustom(client, options)`    | Explicit methods and response normalization                            |
+| LangChain                               | `langchain_handler()`                    | Explicit SDK spans or OTLP JSON bridge | Python chain, model, retrieval and tool callbacks                      |
+| LiteLLM                                 | `instrument_library(litellm, "litellm")` | Compatible/custom provider adapter     | Python completion/acompletion/responses/aresponses                     |
+| Langfuse                                | `to_langfuse` / `export_langfuse`        | `toLangfuse` / `exportLangfuse`        | Completed recordings exported through OTLP/HTTP JSON                   |
 
 “Any provider” means the canonical event format and custom adapters can represent its calls. It does
-not mean every SDK method is automatically instrumented. Bedrock InvokeModel, non-Google Vertex SDKs,
-Realtime APIs and framework-specific orchestration need explicit adapters or manual spans. Node
-Bedrock instrumentation covers promise/stream commands, not callback-style `send` calls.
+not mean every SDK method is automatically instrumented. Native Bedrock, legacy Vertex and Realtime
+have explicit adapters described in [advanced integrations](advanced-integrations.md). Other SDK
+surfaces can use custom adapters or manual spans. Node Bedrock covers promise/stream commands;
+callback-style `send` calls remain application-managed.
 
 Python optional extras install the corresponding dependencies:
 
@@ -144,9 +146,10 @@ with refract.run("chain") as recording:
     chain.invoke("hello", config={"callbacks": [langchain_handler(provider="custom")]})
 ```
 
-Use either LangChain model callbacks or provider instrumentation for the same call. Enabling both
-currently records duplicate generation events and can double-count usage. Callback errors are
-available on `handler.errors`; LangChain is an optional dependency. This integration does not
+Inline LangChain model callbacks and provider instrumentation share a generation in the same active
+recording context, avoiding duplicate usage for that call. Remote or separately scheduled callbacks
+need explicit application correlation. Callback errors are available on `handler.errors`; LangChain
+is an optional dependency. This integration does not
 implicitly execute or approve tools during replay.
 
 Export completed runs to Langfuse with the [OpenTelemetry guide](otel.md#langfuse). The Python and
@@ -161,7 +164,8 @@ storage and an application exporter. These settings are independent of provider 
 See [production operation](../production.md) and SDK [Python](python.md)/[Node](typescript.md) guides
 for bounded queues, retry spools and shutdown.
 
-Usage comes from provider responses; prices are explicit configuration, not a live billing feed.
+Usage comes from provider responses; prices are explicit configuration or an approved, refreshable
+[price catalog](pricing.md). Invoice reconciliation uses explicit request-to-event mappings.
 Missing usage/pricing is unknown, not zero. Tool-call proposals are distinct from actual tool
 execution. See [metrics](metrics.md) for completeness and cost interpretation.
 
@@ -176,3 +180,9 @@ Run `make setup && make test` for the locked test environment. Executable exampl
 [Python providers](../../examples/python/providers/custom.py),
 [Node providers](../../examples/typescript/providers/README.md), and the
 [example catalog](../../examples/README.md). Validate your chosen live model before deployment.
+
+## Additional 0.1.4 interfaces
+
+See [provider extensions and framework continuation](advanced-integrations.md) for Foundry v1
+authentication contracts, native/async Bedrock, legacy Vertex, local inference clients, Realtime,
+LangChain/provider deduplication and LangGraph checkpoints.

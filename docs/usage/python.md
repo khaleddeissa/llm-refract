@@ -42,3 +42,10 @@ with refract.run("custom-model", path="custom.rfr"):
 
 [Examples](../../examples/README.md) cover RAG documents/citations, failures, state checkpoints and
 explicit parent-child relationships. [Artifact APIs](artifacts.md) cover `pack` and `unpack`.
+
+## Provider extensions and production controls
+
+[Advanced integrations](advanced-integrations.md) covers Foundry authentication, native/async Bedrock,
+legacy Vertex, Ollama/Hugging Face/llama.cpp/LiteLLM, Realtime and LangGraph continuation. Use
+[price feeds and invoice reconciliation](pricing.md) for explicit cost configuration, and
+[service controls](service-controls.md) for synchronous fsync acceptance and server identity/security.
