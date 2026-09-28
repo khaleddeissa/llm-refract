@@ -28,7 +28,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: make setup ci test-contract
+      - run: make setup ci test-contract test-recovery
       - run: cargo run -p refract-artifact --example inspect
       - run: uv run python examples/python/basic/record.py
       - run: node examples/typescript/basic/record.mjs

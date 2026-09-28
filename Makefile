@@ -66,3 +66,8 @@ test-interfaces:
 	uv run python tests/integration/interfaces.py
 	node tests/integration/sdk.mjs
 	uv run python tests/integration/platform_checks.py
+
+.PHONY: test-recovery
+test-recovery:
+	cargo build --locked -p refract-server
+	python3 tests/integration/recovery.py
