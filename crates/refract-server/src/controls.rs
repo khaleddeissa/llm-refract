@@ -7,6 +7,8 @@ pub(super) struct VectorRequest {
     embedding: Embedding,
     #[serde(default = "default_limit")]
     limit: usize,
+    #[serde(default)]
+    mode: refract_storage::VectorSearchMode,
 }
 fn default_limit() -> usize {
     20
@@ -21,7 +23,7 @@ pub(super) async fn vector_search(
     }
     Ok(Json(
         store
-            .vector_search(&req.embedding, req.limit)
+            .vector_search_with_mode(&req.embedding, req.limit, req.mode)
             .await
             .map_err(internal)?,
     ))

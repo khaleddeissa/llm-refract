@@ -33,7 +33,7 @@ administrative routes within the same scope. `/v1/health` and `/v1/ready` are un
 Requests are limited to 16 MiB. Invalid application data returns 400, invalid keys 401, insufficient
 roles 403, absent/cross-scope runs 404, snapshot conflicts 409 and rate limits 429 with `Retry-After: 60`.
 Unknown body fields are rejected. Missing metric observations remain explicit; no pricing catalogue is
-used to invent costs. The similar-runs route uses lexical ranking; `/v1/search/vector` provides a separate exact vector index.
+used to invent costs. The similar-runs route uses lexical ranking; `/v1/search/vector` provides scoped cosine retrieval with exact and HNSW modes. `/v1/search/text` embeds a query using a configured project profile.
 
 ## HTTP examples
 
@@ -99,3 +99,19 @@ not the artifact header/body encoding: decode/validate the file first. Native HT
 All `/v1/admin` routes require admin role in the current scope. See [service controls](usage/service-controls.md)
 for request bodies, limits and operating procedures. Native gRPC uses the standard TraceService Export
 route on the same port. It does not accept execution `.rfr` files.
+
+## Project embeddings and text search
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/v1/auth/me` | Current authenticated identity, role, and scope |
+| GET | `/v1/embedding-models` | Operator-approved model profiles available to this scope; no credentials/endpoints |
+| GET | `/v1/project/embeddings` | Enabled project profiles and indexing job counts |
+| PUT | `/v1/admin/project/embeddings` | Admin replaces selections with an array of `{profile,is_default,auto_index}` |
+| POST | `/v1/admin/embeddings/reindex` | Admin queues/retries indexing of recorded runs |
+| POST | `/v1/search/text` | Reader submits `{query,profile?,limit?,mode?}`; returns runs and scored matches |
+
+Text and vector search accept `mode: "auto"` (default), `"exact"`, or `"approximate"`.
+Read the [search guide](usage/search.md) for provider profiles, preprocessing, namespaces,
+worker recovery, cache sizing, and SDK examples. Text search may call the selected provider; vector
+search only uses submitted/stored vectors.

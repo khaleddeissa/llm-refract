@@ -1,4 +1,5 @@
 mod external;
+mod service;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use refract_core::Run;
@@ -12,6 +13,18 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Serve,
+    /// Search recorded runs by meaning using a configured project embedding model.
+    Search {
+        query: String,
+        #[arg(long)]
+        profile: Option<String>,
+        #[arg(long, default_value = "auto", value_parser = ["auto", "exact", "approximate"])]
+        mode: String,
+        #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: u32,
+    },
+    /// List operator-approved models and the project's enabled profiles/index status.
+    EmbeddingModels,
     Inspect {
         file: PathBuf,
     },
@@ -116,6 +129,31 @@ fn write(path: PathBuf, bytes: &[u8]) -> Result<()> {
 async fn main() -> Result<()> {
     match Cli::parse().command {
         Command::Serve => refract_server::serve().await?,
+        Command::Search {
+            query,
+            profile,
+            mode,
+            limit,
+        } => {
+            let result = service::request(
+                "/v1/search/text",
+                Some(
+                    serde_json::json!({"query":query,"profile":profile,"mode":mode,"limit":limit}),
+                ),
+            )
+            .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Command::EmbeddingModels => {
+            let models = service::request("/v1/embedding-models", None).await?;
+            let project = service::request("/v1/project/embeddings", None).await?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"models":models["models"],"project":project})
+                )?
+            );
+        }
         Command::Inspect { file } => println!("{}", serde_json::to_string_pretty(&read(&file)?)?),
         Command::Validate { file } => {
             read(&file)?;

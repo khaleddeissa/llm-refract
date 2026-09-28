@@ -313,3 +313,11 @@ export {
 export { BatchExporter, type BatchExporterOptions } from "./exporter.js";
 export { toOtlp, fromOtlp, exportOtlp } from "./otel.js";
 export { toLangfuse, exportLangfuse } from "./langfuse.js";
+export {
+  RefractClient,
+  type EmbeddingModel,
+  type EmbeddingSelection,
+  type EmbeddingSettings,
+  type TextSearchResult,
+  type VectorMatch,
+} from "./client.js";

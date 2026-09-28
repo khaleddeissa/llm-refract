@@ -26,7 +26,7 @@ impl Embedding {
         );
         Ok(())
     }
-    fn normalized(&self) -> Vec<f64> {
+    pub(crate) fn normalized(&self) -> Vec<f64> {
         let norm = self.values.iter().map(|v| v * v).sum::<f64>().sqrt();
         self.values.iter().map(|v| v / norm).collect()
     }
@@ -63,6 +63,17 @@ impl Store {
             .bind(before.to_rfc3339()).execute(&mut *self.connection().await?).await?.rows_affected())
     }
     pub async fn put_embedding(&self, run_id: &str, embedding: &Embedding) -> Result<bool> {
+        let mut tx = self.transaction().await?;
+        let inserted = self.put_embedding_tx(&mut tx, run_id, embedding).await?;
+        tx.commit().await?;
+        Ok(inserted)
+    }
+    pub(crate) async fn put_embedding_tx(
+        &self,
+        tx: &mut Transaction<'_, Any>,
+        run_id: &str,
+        embedding: &Embedding,
+    ) -> Result<bool> {
         embedding.validate()?;
         let identity = format!("embedding:{run_id}:{}", embedding.model);
         let payload = serde_json::to_string(&embedding.normalized())?;
@@ -74,64 +85,11 @@ impl Store {
         let result = sqlx::query("INSERT INTO run_embeddings(organization,project,environment,run_id,model,dimensions,embedding) SELECT organization,project,environment,id,$5,$6,$7 FROM runs WHERE organization=$1 AND project=$2 AND environment=$3 AND id=$4 ON CONFLICT(organization,project,environment,run_id,model) DO UPDATE SET dimensions=excluded.dimensions,embedding=excluded.embedding")
             .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment)
             .bind(run_id).bind(&embedding.model).bind(embedding.values.len() as i64).bind(encoded)
-            .execute(&mut *self.connection().await?).await?;
-        Ok(result.rows_affected() == 1)
-    }
-    /// Exact cosine search within one model/dimension namespace and tenant scope.
-    /// Refuse oversized candidate sets rather than silently searching an arbitrary subset.
-    pub async fn vector_search(&self, query: &Embedding, limit: usize) -> Result<Vec<VectorMatch>> {
-        query.validate()?;
-        ensure!(
-            (1..=100).contains(&limit),
-            "vector result limit must be 1..100"
-        );
-        let rows = sqlx::query("SELECT run_id,embedding FROM run_embeddings WHERE organization=$1 AND project=$2 AND environment=$3 AND model=$4 AND dimensions=$5 ORDER BY run_id LIMIT 10001")
-            .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment)
-            .bind(&query.model).bind(query.values.len() as i64).fetch_all(&mut *self.connection().await?).await?;
-        ensure!(
-            rows.len() <= 10000,
-            "exact vector search supports at most 10000 candidates per namespace"
-        );
-        let normalized = query.normalized();
-        let mut matches = Vec::with_capacity(rows.len());
-        for row in rows {
-            let run_id: String = row.try_get("run_id")?;
-            let payload: String = row.try_get("embedding")?;
-            let decoded = if payload.starts_with("enc:") {
-                self.options
-                    .encryption
-                    .as_ref()
-                    .ok_or_else(|| anyhow!("embedding key is unavailable"))?
-                    .open(
-                        &self.scope,
-                        &format!("embedding:{run_id}:{}", query.model),
-                        &payload,
-                    )?
-            } else {
-                payload
-            };
-            let values: Vec<f64> = serde_json::from_str(&decoded)?;
-            ensure!(
-                values.len() == normalized.len(),
-                "stored embedding dimension mismatch"
-            );
-            let score = values
-                .iter()
-                .zip(&normalized)
-                .map(|(a, b)| a * b)
-                .sum::<f64>();
-            matches.push(VectorMatch {
-                run_id,
-                score: score.clamp(-1.0, 1.0),
-            });
+            .execute(&mut **tx).await?;
+        if result.rows_affected() == 1 {
+            self.bump_vector_generation(tx, &embedding.model).await?;
         }
-        matches.sort_by(|a, b| {
-            b.score
-                .total_cmp(&a.score)
-                .then_with(|| a.run_id.cmp(&b.run_id))
-        });
-        matches.truncate(limit);
-        Ok(matches)
+        Ok(result.rows_affected() == 1)
     }
 }
 

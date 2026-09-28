@@ -19,6 +19,7 @@ serde_json.workspace = true
 clap.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
+reqwest.workspace = true
 
 [[bin]]
 name = "refract"

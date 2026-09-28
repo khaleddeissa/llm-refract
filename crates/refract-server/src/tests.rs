@@ -11,7 +11,7 @@ fn fixture() -> Run {
     ))
     .unwrap()
 }
-async fn request(
+pub(super) async fn request(
     app: &Router,
     method: &str,
     path: &str,

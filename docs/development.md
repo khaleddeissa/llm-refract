@@ -53,11 +53,6 @@ example output before rerunning. Checked-in fixtures are never overwritten by ex
 standard-library modules such as `platform.py`: direct execution puts their directory on Python's
 import path. The contract suite checks these imports without third-party packages.
 
-The [changelog](../CHANGELOG.md) records changes for users, grouped by release. While preparing
-0.1.4, add features/fixes/security notes under `0.1.4 — Unreleased`. Replace `Unreleased` with the
-actual release date when publishing, then start the next unreleased section. Do not invent release
-dates or bump package versions for every edit during preparation.
-
 ## Python conventions
 
 Root `pyproject.toml` is a non-distributable uv workspace. Shared development dependencies use

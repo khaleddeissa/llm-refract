@@ -1,5 +1,6 @@
 mod controls;
 mod delivery;
+mod embeddings;
 mod identity_api;
 pub mod login;
 pub mod oidc;
@@ -52,6 +53,7 @@ struct AppState {
     store: Store,
     security: Security,
     redaction: refract_collector::RedactionPolicy,
+    embeddings: embeddings::Registry,
 }
 /// Development router with a local admin identity. Use router_with_security for shared services.
 pub fn router(store: Store) -> Router {
@@ -62,22 +64,33 @@ pub fn router_with_security(store: Store, security: Security) -> Router {
         store,
         security,
         refract_collector::RedactionPolicy::default(),
+        embeddings::Registry::default(),
     )
 }
 fn router_with_policy(
     store: Store,
     security: Security,
     redaction: refract_collector::RedactionPolicy,
+    embeddings: embeddings::Registry,
 ) -> Router {
     let state = AppState {
         store,
         security,
         redaction,
+        embeddings,
     };
     Router::new()
         .route("/v1/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/v1/ready", get(ready))
         .route("/v1/auth/config", get(login::config))
+        .route(
+            "/v1/auth/me",
+            get(
+                |Extension(identity): Extension<security::Identity>| async move {
+                    Json(json!({"id":identity.id,"role":identity.role,"scope":identity.scope}))
+                },
+            ),
+        )
         .route("/v1/runs", get(list).post(create))
         .route("/v1/traces", post(otel::http))
         .route_service(
@@ -87,6 +100,14 @@ fn router_with_policy(
         .route("/v1/runs/batch", post(batch))
         .route("/v1/search", get(search))
         .route("/v1/search/vector", post(controls::vector_search))
+        .route("/v1/search/text", post(embeddings::search))
+        .route("/v1/embedding-models", get(embeddings::models))
+        .route("/v1/project/embeddings", get(embeddings::settings))
+        .route(
+            "/v1/admin/project/embeddings",
+            axum::routing::put(embeddings::configure),
+        )
+        .route("/v1/admin/embeddings/reindex", post(embeddings::reindex))
         .route(
             "/v1/runs/{id}/embedding",
             axum::routing::put(controls::embedding),
@@ -152,11 +173,13 @@ async fn authorize(State(state): State<AppState>, mut request: Request, next: Ne
         )
         .into_response();
     };
-    let store = state.store.scoped(identity.scope);
+    request.extensions_mut().insert(identity.clone());
+    let store = state.store.scoped(identity.scope.clone());
     let method = request.method().clone();
     let readonly = method == Method::GET
         || method == Method::HEAD
         || path == "/v1/search/vector"
+        || path == "/v1/search/text"
         || path == "/v1/diff"
         || path == "/v1/eval"
         || path.ends_with("/replay");
@@ -489,6 +512,7 @@ pub async fn serve() -> anyhow::Result<()> {
         _ => None,
     };
     let mode = std::env::var("REFRACT_MODE").unwrap_or("local".into());
+    let embeddings = embeddings::Registry::from_env(mode == "production")?;
     security::validate_mode(
         &mode,
         &security,
@@ -518,6 +542,34 @@ pub async fn serve() -> anyhow::Result<()> {
         None => store.clone(),
     };
     let worker_store = store.clone();
+    let embedding_store = store.clone();
+    let embedding_registry = embeddings.clone();
+    let embedding_worker = tokio::spawn(async move {
+        let mut repair = Instant::now();
+        loop {
+            if repair.elapsed().as_secs() >= 60 {
+                if let Ok(scopes) = embedding_store.scopes().await {
+                    for scope in scopes {
+                        if embedding_store
+                            .scoped(scope)
+                            .reindex_embeddings(false)
+                            .await
+                            .is_err()
+                        {
+                            eprintln!("embedding scheduling repair failed");
+                        }
+                    }
+                }
+                repair = Instant::now();
+            }
+            match embedding_registry.process_one(&embedding_store).await {
+                Ok(true) => continue,
+                Ok(false) => (),
+                Err(_) => eprintln!("embedding worker failed; inspect database health"),
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    });
     let retention = security.retention;
     let worker = tokio::spawn(async move {
         let mut last_retention = Instant::now() - std::time::Duration::from_secs(3600);
@@ -595,6 +647,7 @@ pub async fn serve() -> anyhow::Result<()> {
         runtime_store,
         security,
         refract_collector::RedactionPolicy::from_env()?,
+        embeddings,
     )
     .fallback_service(ServeDir::new(ui));
     let listener = tokio::net::TcpListener::bind(&address).await?;
@@ -603,6 +656,7 @@ pub async fn serve() -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await;
     worker.abort();
+    embedding_worker.abort();
     result?;
     Ok(())
 }

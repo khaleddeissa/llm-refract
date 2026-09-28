@@ -28,12 +28,12 @@ Content-Type: application/json
 {"embedding":{"model":"local-embedding-v1","values":[0.4,0.8,0.2]},"limit":20}
 ```
 
-Results contain run IDs and exact cosine similarity scores. Model name and dimensions define a search
-namespace; tenants never share candidates. Vectors have 1–4096 finite dimensions and cannot be zero.
-Exact search supports 10,000 candidates per namespace and refuses larger sets rather than silently
-omitting candidates. Result limits are 1–100. Use a distinct model/version name when embeddings change.
-Embeddings use configured payload encryption and expire with their run. This is an exact vector store,
-not an approximate-nearest-neighbor index for millions of vectors.
+Results contain run IDs and cosine scores. Model name and dimensions define a search namespace;
+tenants never share candidates. Vectors have 1–4096 finite dimensions and cannot be zero. Searches
+return 1–100 results, using exact streaming retrieval or a cached HNSW graph. There is no fixed
+10,000-candidate cutoff. Embeddings use configured payload encryption and expire with their run.
+See [search and embedding configuration](search.md) for automatic generation, project model selection,
+custom provider profiles, index memory sizing, restart behavior and `mode` selection.
 
 ## Managed keys and OIDC
 

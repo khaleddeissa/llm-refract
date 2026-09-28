@@ -7,6 +7,7 @@ import type {
 import { request, setApiKey, download } from "./api";
 import { beginLogin, completeLogin, type LoginConfiguration } from "./login";
 import { ExecutionGraph } from "./graph";
+import { EmbeddingControls } from "./embeddings";
 import { metrics, number, difference } from "./metrics";
 import "./style.css";
 interface SemanticReport {
@@ -31,6 +32,8 @@ function App() {
   const [result, setResult] = useState<unknown>();
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [embeddingProfile, setEmbeddingProfile] = useState("");
+  const [authRevision, setAuthRevision] = useState(0);
   const [compareId, setCompareId] = useState("");
   const [semantic, setSemantic] = useState(true);
   const semanticResult =
@@ -67,9 +70,18 @@ function App() {
       const query = new URLSearchParams({ limit: "100", offset: String(page) });
       for (const [key, value] of Object.entries(filters))
         if (value.trim()) query.set(key, value.trim());
-      const loaded = await request<{ runs: Execution[]; total: number }>(
-        `/v1/search?${query}`,
-      );
+      const loaded = embeddingProfile
+        ? await request<{ runs: Execution[]; total: number }>(
+            "/v1/search/text",
+            {
+              query: filters.q,
+              profile: embeddingProfile,
+              limit: 100,
+            },
+          )
+        : await request<{ runs: Execution[]; total: number }>(
+            `/v1/search?${query}`,
+          );
       if (sequence !== refreshSequence.current) return;
       setRuns(loaded.runs);
       setOffset(page);
@@ -108,8 +120,10 @@ function App() {
             ) {
               // Remove authorization codes from browser history before any asynchronous exchange.
               window.history.replaceState(null, "", window.location.pathname);
-              if (await completeLogin(auth.configuration, callback))
+              if (await completeLogin(auth.configuration, callback)) {
                 setAuthenticated(true);
+                setAuthRevision((value) => value + 1);
+              }
             }
           }
         }
@@ -182,47 +196,55 @@ function App() {
               setFilters({ ...filters, q: event.target.value })
             }
           />
-          <details>
-            <summary>Filter executions</summary>
-            <label>
-              Status
-              <select
-                aria-label="Filter status"
-                value={filters.status}
-                onChange={(event) =>
-                  setFilters({ ...filters, status: event.target.value })
-                }
-              >
-                <option value="">Any status</option>
-                <option>completed</option>
-                <option>failed</option>
-                <option>running</option>
-              </select>
-            </label>
-            {(
-              [
-                ["model", "Model"],
-                ["tool", "Tool name"],
-                ["min_duration_ms", "Minimum latency (ms)"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key}>
-                {label}
-                <input
-                  value={filters[key]}
-                  type={key === "min_duration_ms" ? "number" : "text"}
-                  min="0"
+          {!embeddingProfile && (
+            <details>
+              <summary>Filter executions</summary>
+              <label>
+                Status
+                <select
+                  aria-label="Filter status"
+                  value={filters.status}
                   onChange={(event) =>
-                    setFilters({ ...filters, [key]: event.target.value })
+                    setFilters({ ...filters, status: event.target.value })
                   }
-                />
+                >
+                  <option value="">Any status</option>
+                  <option>completed</option>
+                  <option>failed</option>
+                  <option>running</option>
+                </select>
               </label>
-            ))}
-          </details>
+              {(
+                [
+                  ["model", "Model"],
+                  ["tool", "Tool name"],
+                  ["min_duration_ms", "Minimum latency (ms)"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key}>
+                  {label}
+                  <input
+                    value={filters[key]}
+                    type={key === "min_duration_ms" ? "number" : "text"}
+                    min="0"
+                    onChange={(event) =>
+                      setFilters({ ...filters, [key]: event.target.value })
+                    }
+                  />
+                </label>
+              ))}
+            </details>
+          )}
           <button type="submit" disabled={loading}>
             Search
           </button>
         </form>
+        <EmbeddingControls
+          key={authRevision}
+          profile={embeddingProfile}
+          onChange={setEmbeddingProfile}
+          refreshToken={authRevision}
+        />
         <p className="muted result-count">{total} matching runs</p>
         <nav aria-label="Recorded runs">
           {runs.map((r) => (
@@ -261,6 +283,8 @@ function App() {
             setApiKey(credential.trim());
             setAuthenticated(Boolean(credential.trim()));
             setCredential("");
+            setEmbeddingProfile("");
+            setAuthRevision((value) => value + 1);
             void refresh();
           }}
         >

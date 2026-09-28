@@ -15,7 +15,7 @@ may lag these changes until a release is made. Verification commands and deploym
 | Service controls          | Scoped static/managed keys, OIDC/PKCE login, keyring rotation, optional RLS, audit export/expiry and shared SQL quotas             | OIDC requires provisioned subjects and browser client configuration; RLS requires a restricted PostgreSQL role            |
 | OpenTelemetry             | OTLP JSON/protobuf HTTP and gRPC ingestion, durable distributed assembly and SDK bridges                                           | Trace/span IDs must be propagated upstream; no metrics/log ingestion or inferred missing spans                            |
 | Evaluation                | Versioned dataset manifests, per-case options, CLI/CI reports and scoped API/MCP pair evaluation                                   | Candidates must be fresh recordings; no hidden model execution inside comparison                                          |
-| Search                    | Indexed structured filters, pagination, lexical similarity and exact scoped vector search                                          | Application-generated vectors; no embedding model picker/text-to-vector endpoint; 10,000-candidate limit                  |
+| Search                    | Structured filters, lexical similarity, automatic embeddings, project model selection and scoped vector search                                          | Operator-approved profiles; provider credentials and model dimensions must match deployment configuration                  |
 | Storage and delivery      | SQLite/PostgreSQL, durable delivery outbox, configurable downstream sinks                                                          | Operate and monitor dependencies; deployment-specific failure/recovery testing remains necessary                          |
 
 The listed workstreams have implementations with local/mock verification. Live credentials, cloud
@@ -29,6 +29,6 @@ for the tests that verify each supported mode. Recorded artifacts never authoriz
 choose an executable on behalf of a user.
 
 Additional SDK surfaces can be added through custom adapters. Named adapters cover documented methods,
-not every historical SDK, arbitrary inference runtime or framework operation. Approximate search beyond
-10,000 vectors, SCIM/group synchronization, persistent browser refresh sessions and provider-specific
-invoice importers are future extensions, rather than implied features of these interfaces.
+not every historical SDK, arbitrary inference runtime or framework operation. Search supports automatic embedding profiles, project model selection, exact streaming retrieval and
+HNSW indexes with database-backed invalidation. Deployment-specific credentials and capacity settings
+are described in the search and production guides.

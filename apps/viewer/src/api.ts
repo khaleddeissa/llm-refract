@@ -6,11 +6,13 @@ export function setApiKey(value: string): void {
 export async function response(
   path: string,
   body?: unknown,
+  method?: string,
 ): Promise<Response> {
   const response = await fetch(path, {
     ...(body === undefined
       ? {}
       : { method: "POST", body: JSON.stringify(body) }),
+    ...(method ? { method } : {}),
     headers: {
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
@@ -22,8 +24,12 @@ export async function response(
     );
   return response;
 }
-export async function request<T>(path: string, body?: unknown): Promise<T> {
-  return (await response(path, body)).json() as Promise<T>;
+export async function request<T>(
+  path: string,
+  body?: unknown,
+  method?: string,
+): Promise<T> {
+  return (await response(path, body, method)).json() as Promise<T>;
 }
 export async function download(path: string, filename: string): Promise<void> {
   const blob = await (await response(path)).blob();

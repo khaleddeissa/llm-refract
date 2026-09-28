@@ -50,7 +50,7 @@ Python / TypeScript / native JSON
 | CLI                  | Inspect, replay, rerun, compare semantics/budgets, evaluate datasets and serve                 | [CLI](docs/usage/cli.md)               |
 | REST API             | Batch/OTLP ingestion, vector search, metrics, comparison and tenant administration             | [API](docs/api.md)                     |
 | Docker image + UI    | Explore execution graphs, usage, bottlenecks and comparison in the browser                     | [Docker](docs/usage/docker.md)         |
-| MCP                  | Give agents fourteen read tools, including metrics/evaluation/search, and two optional writes  | [MCP](docs/usage/mcp.md)               |
+| MCP                  | Give agents sixteen read tools, including metrics/evaluation/search, and two optional writes  | [MCP](docs/usage/mcp.md)               |
 | Skills               | Teach agents supported inspection, debugging, artifact and regression workflows                | [Skills](docs/usage/skills.md)         |
 | GitHub Action        | Compare fresh application output against a reviewed execution baseline                         | [CI](docs/usage/ci.md)                 |
 | `.rfr` format        | Carry readable, versioned, checksummed execution data between these interfaces                 | [File format](docs/usage/artifacts.md) |
@@ -75,8 +75,7 @@ MCP and the UI call the same API. Skills provide operating instructions; they ar
 [Provider coverage](docs/usage/providers.md) · [Instrumentation](docs/usage/python.md) · [Metrics](docs/usage/metrics.md) ·
 [Rerun](docs/usage/rerun.md) · [Evaluation](docs/usage/evaluation.md) · [Operation](docs/production.md)
 
-The current development release is **0.1.4 (unreleased)**. See the [changelog](CHANGELOG.md) for
-features, compatibility changes and security fixes. Registry releases may lag this checkout.
+This checkout targets **0.1.4**. Published package versions may lag this checkout.
 
 ## Record in your application
 

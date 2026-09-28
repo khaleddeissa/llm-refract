@@ -176,3 +176,23 @@ The Caddy profile uses an [HTTP/2 cleartext upstream](https://caddyserver.com/do
 on the private service network so HTTPS gRPC clients reach the same native receiver. Permit controlled
 HTTPS egress to JWKS and workload credential endpoints when enabling those integrations; the default
 internal network blocks outbound traffic. Browser token exchange also requires identity-provider CORS.
+
+## Embedding services and index capacity
+
+Configure operator-owned `REFRACT_EMBEDDING_PROFILES_FILE` with approved HTTPS endpoints and secret
+references before enabling project models. Restrict profiles with `scopes` when projects must use
+separate provider accounts. Query text and redacted recording text are sent to these providers;
+apply your data-handling policy and outbound controls to them. Project administrators select models
+in Inspector or the API; readers can search without receiving provider credentials.
+
+Embedding jobs commit with run ingestion, retry with backoff, and recover expired worker leases.
+Inspect `/v1/project/embeddings` for pending/failed counts and use the admin reindex endpoint after
+repairing credentials or profile settings. Run migrations before the service, then reapply
+`deploy/production/row-security.sql` for restricted PostgreSQL roles: project settings, embedding jobs
+and vector generations are tenant-protected tables too.
+
+Size `REFRACT_VECTOR_CACHE_MB` for the HNSW working set and reserve memory for construction and other
+service requests. Graphs rebuild from stored encrypted vectors after restart; include this warm-up
+cost in load and readiness planning. Exact mode streams all candidates when requested or when a
+namespace exceeds the cache budget. See [search](usage/search.md) for preprocessing, provider
+protocols, index behavior, and SDK/API examples.

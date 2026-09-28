@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from .artifact import pack
+from .client import RefractClient as RefractClient
 
 SPEC_VERSION = "refract.execution.v1"
 _current: contextvars.ContextVar[Run | None] = contextvars.ContextVar("refract_run", default=None)

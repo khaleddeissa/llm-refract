@@ -25,7 +25,7 @@ def api(path: str, body: dict | None = None) -> Any:
         None if body is None else json.dumps(body).encode(),
         headers,
     )
-    with urllib.request.urlopen(request, timeout=15) as response:
+    with urllib.request.urlopen(request, timeout=35) as response:
         data = response.read(17 * 1024 * 1024 + 1)
     if len(data) > 17 * 1024 * 1024:
         raise ValueError("response exceeds size limit")
@@ -211,3 +211,17 @@ def vector_search(model: str, values: list[float], limit: int = 20) -> list[dict
     return api(
         "/v1/search/vector", {"embedding": {"model": model, "values": values}, "limit": limit}
     )
+
+
+@mcp.tool(annotations=READ)
+def embedding_models() -> dict:
+    """List enabled project embedding profiles, available models, and index job counts."""
+    return {**api("/v1/embedding-models"), **api("/v1/project/embeddings")}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True))
+def search_text(query: str, profile: str | None = None, limit: int = 20) -> dict:
+    """Search executions by meaning; sends query text to the project's configured embedding provider."""
+    if not query.strip() or len(query.encode()) > 8000 or not 1 <= limit <= 100:
+        raise ValueError("query must be 1..8000 bytes and limit 1..100")
+    return api("/v1/search/text", {"query": query, "profile": profile, "limit": limit})

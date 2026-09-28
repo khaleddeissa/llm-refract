@@ -10,7 +10,7 @@ DO $$
 DECLARE relation text;
 BEGIN
     FOREACH relation IN ARRAY ARRAY['runs','run_events','run_embeddings','audit_log','outbox',
-                                    'rate_buckets','trace_assemblies','trace_spans'] LOOP
+                                    'rate_buckets','trace_assemblies','trace_spans','project_embeddings','embedding_jobs','vector_generations'] LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', relation);
         EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', relation);
         EXECUTE format('DROP POLICY IF EXISTS refract_scope ON %I', relation);

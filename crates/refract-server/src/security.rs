@@ -4,7 +4,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, time::Duration};
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     Reader,

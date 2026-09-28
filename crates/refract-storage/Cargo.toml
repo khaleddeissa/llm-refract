@@ -16,6 +16,8 @@ serde.workspace = true
 chrono.workspace = true
 aes-gcm.workspace = true
 base64.workspace = true
+tokio.workspace = true
+instant-distance = "0.6.1"
+futures-util = "0.3"
 
 [dev-dependencies]
-tokio.workspace = true

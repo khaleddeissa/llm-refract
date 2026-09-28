@@ -1,4 +1,8 @@
 mod controls;
+mod vector_index;
+pub use vector_index::VectorSearchMode;
+mod embedding_jobs;
+pub use embedding_jobs::{EmbeddingJob, EmbeddingSetting};
 mod identities;
 mod rotation;
 mod row_security;
@@ -59,6 +63,7 @@ pub struct Store {
     scope: Scope,
     options: StoreOptions,
     rls: bool,
+    vector_cache: std::sync::Arc<vector_index::VectorCache>,
 }
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -184,6 +189,7 @@ impl Store {
             scope: Scope::default(),
             options,
             rls: false,
+            vector_cache: std::sync::Arc::new(vector_index::VectorCache::from_env()?),
         };
         store.validate_encryption_keys().await?;
         store.backfill().await?;
@@ -294,6 +300,7 @@ impl Store {
             return Ok(false);
         }
         self.index_events(tx, &run).await?;
+        self.enqueue_embeddings(tx, &run.id).await?;
         for target in &self.options.outbox_targets {
             self.enqueue(tx, &run.id, target, "put").await?;
         }
@@ -432,6 +439,13 @@ impl Store {
         let ids: Vec<(String,)> = sqlx::query_as("SELECT id FROM runs WHERE organization=$1 AND project=$2 AND environment=$3 AND received_at < $4")
             .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(before.to_rfc3339()).fetch_all(&mut *tx).await?;
         for (id,) in &ids {
+            let models: Vec<(String,)> = sqlx::query_as("SELECT model FROM run_embeddings WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4")
+                .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).fetch_all(&mut *tx).await?;
+            for (model,) in models {
+                self.bump_vector_generation(&mut tx, &model).await?;
+            }
+            sqlx::query("DELETE FROM embedding_jobs WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4")
+                .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).execute(&mut *tx).await?;
             let leases = sqlx::query("SELECT target,available_at FROM outbox WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4 AND lease_token<>''")
                 .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).fetch_all(&mut *tx).await?;
             sqlx::query("DELETE FROM run_embeddings WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4")
@@ -595,7 +609,7 @@ mod tests {
                 .fetch_one(&store.pool)
                 .await
                 .unwrap();
-        assert_eq!(versions, 5);
+        assert_eq!(versions, 7);
         store.pool.close().await;
         std::fs::remove_file(path).unwrap();
     }
