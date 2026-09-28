@@ -406,3 +406,136 @@ it("preserves a method's own property descriptor when restored", () => {
     descriptor,
   );
 });
+
+it("records native Bedrock bytes and preserves unknown usage", async () => {
+  const { instrumentBedrockNative } = await import("../src/index.js");
+  class InvokeModelCommand {
+    constructor(public input: object) {}
+  }
+  const result = {
+    body: new TextEncoder().encode(
+      JSON.stringify({ generation: "ok", generation_token_count: 4 }),
+    ),
+  };
+  const client = { send: async (_command: InvokeModelCommand) => result };
+  const restore = instrumentBedrockNative(client);
+  const captured = await record(async () => {
+    expect(
+      await client.send(
+        new InvokeModelCommand({ modelId: "local", body: '{"prompt":"hi"}' }),
+      ),
+    ).toBe(result);
+  });
+  expect(captured.events[0].attributes?.output_tokens).toBe(4);
+  expect(captured.events[0].attributes?.input_tokens).toBeUndefined();
+  expect(captured.events[0].attributes?.total_tokens).toBeUndefined();
+  restore();
+});
+it("observes Ollama usage without changing local model results", async () => {
+  const { instrumentLibrary } = await import("../src/index.js");
+  const result = {
+    message: { content: "local" },
+    prompt_eval_count: 3,
+    eval_count: 2,
+  };
+  const client = { chat: async (_input: object) => result };
+  const restore = instrumentLibrary(client, "ollama");
+  const captured = await record(async () => {
+    expect(await client.chat({ model: "local", messages: [] })).toBe(result);
+  });
+  expect(captured.events[0].attributes?.total_tokens).toBe(5);
+  restore();
+});
+
+it("merges native Bedrock usage across streaming messages", async () => {
+  const { instrumentBedrockNative } = await import("../src/index.js");
+  class InvokeModelWithResponseStreamCommand {
+    constructor(public input: object) {}
+  }
+  const messages = [
+    { type: "message_start", message: { usage: { input_tokens: 9 } } },
+    { type: "content_block_delta", delta: { text: "hi" } },
+    { type: "message_delta", usage: { output_tokens: 2 } },
+  ];
+  const chunks = messages.map((message) => ({
+    chunk: { bytes: new TextEncoder().encode(JSON.stringify(message)) },
+  }));
+  const client = {
+    send: async (_command: object) => ({
+      body: (async function* () {
+        yield* chunks;
+      })(),
+    }),
+  };
+  const restore = instrumentBedrockNative(client);
+  const captured = await record(async () => {
+    const result = await client.send(
+      new InvokeModelWithResponseStreamCommand({
+        modelId: "fixture",
+        body: "{}",
+      }),
+    );
+    const observed = [];
+    for await (const chunk of result.body) observed.push(chunk);
+    expect(observed).toEqual(chunks);
+  });
+  expect(captured.events[0].attributes).toMatchObject({
+    input_tokens: 9,
+    output_tokens: 2,
+    total_tokens: 11,
+  });
+  expect(captured.events[0].output).toEqual({ text: "hi", tool_calls: [] });
+  restore();
+});
+
+it("records Realtime responses in the installation context and bounds partial output", async () => {
+  const { EventEmitter } = await import("node:events");
+  const { AsyncResource } = await import("node:async_hooks");
+  const { instrumentRealtime } = await import("../src/index.js");
+  const socketContext = new AsyncResource("fixture-socket");
+  const emitter = new EventEmitter();
+  const emit = (value: object) =>
+    socketContext.runInAsyncScope(() => emitter.emit("event", value));
+  const captured = await record(() => {
+    const stop = instrumentRealtime(emitter, {
+      provider: "openai",
+      model: "local",
+      maxOutputChars: 3,
+    });
+    emit({ type: "response.created", response: { id: "one" } });
+    emit({
+      type: "response.output_audio.delta",
+      response_id: "one",
+      delta: "private-audio",
+    });
+    emit({
+      type: "response.output_text.delta",
+      response_id: "one",
+      delta: "hello",
+    });
+    emit({
+      type: "response.done",
+      response: {
+        id: "one",
+        status: "completed",
+        usage: { input_tokens: 3, output_tokens: 2 },
+      },
+    });
+    emit({ type: "response.created", response: { id: "two" } });
+    stop();
+    stop();
+    expect(emitter.listenerCount("event")).toBe(0);
+  });
+  expect(captured.events).toHaveLength(2);
+  expect(captured.events[0].output).toEqual({ text: "hel" });
+  expect(captured.events[0].attributes).toMatchObject({
+    total_tokens: 5,
+    output_truncated: true,
+    stream_completed: true,
+  });
+  expect(captured.events[1].attributes).toMatchObject({
+    capture_incomplete: true,
+    stream_completed: false,
+  });
+  expect(JSON.stringify(captured)).not.toContain("private-audio");
+});

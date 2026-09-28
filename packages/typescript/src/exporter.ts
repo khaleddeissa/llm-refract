@@ -4,7 +4,8 @@ import {
   readdir,
   rename,
   unlink,
-  writeFile,
+  open,
+  lstat,
 } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -21,6 +22,10 @@ export interface BatchExporterOptions {
   timeoutMs?: number;
   /** Dedicated directory for redacted retry snapshots. Use one exporter per directory. */
   spoolDirectory?: string;
+  /** fsync file + directory before export resolves; persistent POSIX volumes only. */
+  durable?: boolean;
+  maxQueueBytes?: number;
+  maxSpoolBytes?: number;
   onError?: (error: unknown) => void;
 }
 /** Bounded background ingestion. Call shutdown() before terminating the process. */
@@ -28,10 +33,14 @@ export class BatchExporter {
   private queue: Execution[] = [];
   private flushing?: Promise<void>;
   private pending = new Set<Promise<void>>();
+  private acceptance: Promise<void> = Promise.resolve();
   private initialized?: Promise<void>;
   private timer: ReturnType<typeof setInterval>;
   private closed = false;
   private reserved = 0;
+  private reservedBytes = 0;
+  private queuedBytes = 0;
+  private spoolBytes = 0;
   readonly stats = { accepted: 0, exported: 0, dropped: 0, failures: 0 };
   private readonly config: Required<
     Omit<BatchExporterOptions, "apiKey" | "spoolDirectory" | "onError">
@@ -40,6 +49,9 @@ export class BatchExporter {
   constructor(options: BatchExporterOptions) {
     this.config = {
       batchSize: 32,
+      durable: false,
+      maxQueueBytes: 16 * 1024 * 1024,
+      maxSpoolBytes: 64 * 1024 * 1024,
       maxQueueSize: 1024,
       flushIntervalMs: 1000,
       maxAttempts: 3,
@@ -49,6 +61,8 @@ export class BatchExporter {
     };
     for (const key of [
       "batchSize",
+      "maxQueueBytes",
+      "maxSpoolBytes",
       "maxQueueSize",
       "flushIntervalMs",
       "maxAttempts",
@@ -61,6 +75,13 @@ export class BatchExporter {
       !Number.isFinite(this.config.retryDelayMs)
     )
       throw new Error("retryDelayMs must be nonnegative");
+    if (
+      this.config.durable &&
+      (!this.config.spoolDirectory || process.platform === "win32")
+    )
+      throw new Error(
+        "durable acceptance requires a dedicated POSIX spoolDirectory",
+      );
     const endpoint = new URL(options.endpoint);
     if (!["http:", "https:"].includes(endpoint.protocol))
       throw new Error("endpoint must use HTTP(S)");
@@ -88,12 +109,19 @@ export class BatchExporter {
       if (!this.config.spoolDirectory) return;
       await mkdir(this.config.spoolDirectory, { recursive: true, mode: 0o700 });
       for (const filename of await readdir(this.config.spoolDirectory)) {
-        if (
-          !/^[a-f0-9]{64}\.json$/.test(filename) ||
-          this.queue.length >= this.config.maxQueueSize
-        )
-          continue;
+        if (!/^[a-f0-9]{64}\.json$/.test(filename)) continue;
         try {
+          const metadata = await lstat(
+            join(this.config.spoolDirectory, filename),
+          );
+          if (!metadata.isFile() || metadata.isSymbolicLink()) continue;
+          this.spoolBytes += metadata.size;
+          if (this.queue.length >= this.config.maxQueueSize) continue;
+          if (
+            metadata.size + this.queuedBytes > this.config.maxQueueBytes ||
+            metadata.size > this.config.maxSpoolBytes
+          )
+            throw new Error("Spool entry exceeds capacity");
           const run = JSON.parse(
             await readFile(join(this.config.spoolDirectory, filename), "utf8"),
           ) as Execution;
@@ -103,6 +131,7 @@ export class BatchExporter {
           )
             throw new Error("Invalid spool execution");
           this.queue.push(run);
+          this.queuedBytes += Buffer.byteLength(JSON.stringify(run));
         } catch (error) {
           this.report(error);
         }
@@ -112,42 +141,83 @@ export class BatchExporter {
   export(execution: Execution): Promise<void> {
     if (this.closed) {
       this.stats.dropped++;
-      return Promise.resolve();
+      return this.config.durable
+        ? Promise.reject(new Error("exporter is closed"))
+        : Promise.resolve();
     }
     this.reserved++;
+    const previous = this.acceptance;
     const work = (async () => {
+      let reservation = 0;
       try {
+        await previous;
         await this.initialize();
         if (this.queue.length + this.reserved > this.config.maxQueueSize) {
+          if (this.config.durable)
+            throw new Error("export queue capacity exceeded");
           this.stats.dropped++;
           return;
         }
         const run = redact(
           structuredClone(execution) as unknown as Json,
         ) as unknown as Execution;
-        if (this.queue.some((existing) => existing.id === run.id)) return;
+        const serialized = JSON.stringify(run);
+        const duplicate = this.queue.find((existing) => existing.id === run.id);
+        if (duplicate) {
+          if (JSON.stringify(duplicate) !== serialized)
+            throw new Error("run ID already queued with different content");
+          return;
+        }
+        const size = Buffer.byteLength(serialized);
+        if (
+          size + this.queuedBytes + this.reservedBytes >
+            this.config.maxQueueBytes ||
+          (this.config.spoolDirectory &&
+            size + this.spoolBytes + this.reservedBytes >
+              this.config.maxSpoolBytes)
+        )
+          throw new Error("export byte capacity exceeded");
+        reservation = size;
+        this.reservedBytes += size;
         if (this.config.spoolDirectory) {
           const filename = this.filename(run);
           const temporary = `${filename}.${randomUUID()}.tmp`;
-          await writeFile(temporary, JSON.stringify(run), {
-            mode: 0o600,
-            flag: "wx",
-          });
+          const file = await open(temporary, "wx", 0o600);
+          try {
+            await file.writeFile(serialized);
+            if (this.config.durable) await file.sync();
+          } finally {
+            await file.close();
+          }
           await rename(temporary, filename);
+          if (this.config.durable) {
+            const directory = await open(this.config.spoolDirectory, "r");
+            try {
+              await directory.sync();
+            } finally {
+              await directory.close();
+            }
+          }
+          this.spoolBytes += size;
         }
         this.queue.push(run);
+        this.queuedBytes += size;
         this.stats.accepted++;
       } catch (error) {
         this.stats.dropped++;
         this.report(error);
+        if (this.config.durable) throw error;
       } finally {
+        this.reservedBytes -= reservation;
         this.reserved--;
       }
     })();
+    this.acceptance = work.catch(() => {});
     this.pending.add(work);
-    void work.finally(() => {
-      this.pending.delete(work);
-    });
+    void work.then(
+      () => this.pending.delete(work),
+      () => this.pending.delete(work),
+    );
     return work;
   }
   flush(): Promise<void> {
@@ -201,6 +271,13 @@ export class BatchExporter {
             await unlink(this.filename(run)).catch((error) =>
               this.report(error),
             );
+        const bytes = batch.reduce(
+          (sum, run) => sum + Buffer.byteLength(JSON.stringify(run)),
+          0,
+        );
+        this.queuedBytes -= bytes;
+        if (this.config.spoolDirectory)
+          this.spoolBytes = Math.max(0, this.spoolBytes - bytes);
         this.queue.splice(0, batch.length);
         this.stats.exported += batch.length;
       }

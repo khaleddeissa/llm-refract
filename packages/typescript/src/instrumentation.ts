@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { startSpan, type Json } from "./index.js";
 
 export interface InstrumentOptions {
@@ -62,56 +63,59 @@ function usage(
   options: InstrumentOptions,
 ): Record<string, Json> {
   const raw = object(value);
-  const count = (value: unknown) =>
+  const count = (value: unknown): number | undefined =>
     typeof value === "number" && Number.isSafeInteger(value) && value >= 0
       ? value
-      : 0;
+      : undefined;
   const input = count(
     raw.input_tokens ??
       raw.prompt_tokens ??
       raw.promptTokenCount ??
       raw.inputTokens,
   );
+  const candidate = count(raw.candidatesTokenCount);
   const output = count(
     raw.output_tokens ??
       raw.completion_tokens ??
       raw.outputTokens ??
-      count(raw.candidatesTokenCount) + count(raw.thoughtsTokenCount),
+      (candidate === undefined
+        ? undefined
+        : candidate + (count(raw.thoughtsTokenCount) ?? 0)),
   );
-
   const cached = count(
     raw.cache_read_input_tokens ??
       raw.cachedContentTokenCount ??
       raw.cacheReadInputTokens ??
       object(raw.input_tokens_details).cached_tokens ??
-      object(raw.prompt_tokens_details).cached_tokens ??
-      0,
+      object(raw.prompt_tokens_details).cached_tokens,
   );
   const created = count(
     raw.cache_creation_input_tokens ?? raw.cacheWriteInputTokens,
   );
   const attributes: Record<string, Json> = { provider, model };
-  if (Object.keys(raw).length)
-    Object.assign(attributes, {
-      input_tokens: input,
-      output_tokens: output,
-      cache_read_tokens: cached,
-      cache_write_tokens: created,
-      total_tokens:
-        raw.total_tokens !== undefined ||
-        raw.totalTokenCount !== undefined ||
-        raw.totalTokens !== undefined
-          ? count(raw.total_tokens ?? raw.totalTokenCount ?? raw.totalTokens)
-          : input + output + (provider === "anthropic" ? cached + created : 0),
-      cache_hit: cached > 0,
-    });
+  if (input !== undefined) attributes.input_tokens = input;
+  if (output !== undefined) attributes.output_tokens = output;
+  if (cached !== undefined) {
+    attributes.cache_read_tokens = cached;
+    attributes.cache_hit = cached > 0;
+  }
+  if (created !== undefined) attributes.cache_write_tokens = created;
+  const inclusive = !["anthropic", "bedrock"].includes(provider);
+  const measuredTotal = count(
+    raw.total_tokens ?? raw.totalTokenCount ?? raw.totalTokens,
+  );
+  if (measuredTotal !== undefined) attributes.total_tokens = measuredTotal;
+  else if (input !== undefined && output !== undefined)
+    attributes.total_tokens =
+      input + output + (inclusive ? 0 : (cached ?? 0) + (created ?? 0));
   const rate = options.pricing?.[model];
-  if (rate && Object.keys(raw).length) {
-    const regular =
-      provider === "anthropic" ? input + created : Math.max(0, input - cached);
+  if (rate && input !== undefined && output !== undefined) {
+    const regular = inclusive
+      ? Math.max(0, input - (cached ?? 0))
+      : input + (created ?? 0);
     attributes.cost_usd =
       (regular * rate.input +
-        cached * (rate.cachedInput ?? rate.input) +
+        (cached ?? 0) * (rate.cachedInput ?? rate.input) +
         output * rate.output) /
       1_000_000;
     attributes.cost_estimated = true;
@@ -322,7 +326,14 @@ function instrument(
                       const limit = options.maxOutputChars ?? 1_000_000;
                       truncated ||= text.length + token.length > limit;
                       text += token.slice(0, Math.max(0, limit - text.length));
-                      rawUsage = { ...rawUsage, ...normalized.usage };
+                      rawUsage = {
+                        ...rawUsage,
+                        ...Object.fromEntries(
+                          Object.entries(normalized.usage ?? {}).filter(
+                            ([, value]) => value !== undefined,
+                          ),
+                        ),
+                      };
                       tools.push(...(normalized.toolCalls ?? []));
                     } catch {
                       incomplete = true; // Observing an unfamiliar chunk cannot break provider streams.
@@ -604,4 +615,216 @@ export function instrumentCustom(
     options,
     options,
   );
+}
+
+/** Native AWS SDK v3 InvokeModel/InvokeModelWithResponseStream without eager stream reads. */
+export function instrumentBedrockNative(
+  client: object,
+  options: InstrumentOptions = {},
+): () => void {
+  const decode = (body: unknown): Data => {
+    if (typeof body === "string") return object(JSON.parse(body));
+    if (body instanceof Uint8Array)
+      return object(JSON.parse(new TextDecoder().decode(body)));
+    return object(body);
+  };
+  return instrument(client, "bedrock", [["send"]], options, {
+    matches: (args) =>
+      ["InvokeModelCommand", "InvokeModelWithResponseStreamCommand"].includes(
+        args[0]?.constructor.name ?? "",
+      ) && !args.some((arg) => typeof arg === "function"),
+    streamKey: "body",
+    request: (args) => {
+      const input = object(object(args[0]).input);
+      return {
+        model: String(input.modelId ?? "unknown"),
+        input: json(decode(input.body)),
+      };
+    },
+    normalize: (value, { streaming }) => {
+      const raw = object(value);
+      const data = decode(streaming ? object(raw.chunk).bytes : raw.body);
+      const metrics = object(data["amazon-bedrock-invocationMetrics"]);
+      const normal = normalizeDefault(data, streaming);
+      const titan = object(
+        Array.isArray(data.results) ? data.results[0] : undefined,
+      );
+      return {
+        ...normal,
+        output: json(data),
+        text: String(
+          normal.text ||
+            data.generation ||
+            data.outputText ||
+            titan.outputText ||
+            "",
+        ),
+        usage: {
+          ...normal.usage,
+          input_tokens: (data.inputTokenCount ??
+            data.prompt_token_count ??
+            metrics.inputTokenCount ??
+            normal.usage?.input_tokens) as number | undefined,
+          output_tokens: (data.generation_token_count ??
+            titan.tokenCount ??
+            data.totalOutputTextTokenCount ??
+            metrics.outputTokenCount ??
+            normal.usage?.output_tokens) as number | undefined,
+        },
+        failed: Object.keys(raw).some((key) => key.endsWith("Exception")),
+      };
+    },
+  });
+}
+
+/** Named adapters for common local/custom inference libraries. */
+export function instrumentLibrary(
+  client: object,
+  library: "ollama" | "huggingface" | "llama_cpp",
+  options: InstrumentOptions = {},
+): () => void {
+  const methods = {
+    ollama: [["chat"], ["generate"]],
+    huggingface: [
+      ["chatCompletion"],
+      ["chatCompletionStream"],
+      ["textGeneration"],
+      ["textGenerationStream"],
+    ],
+    llama_cpp: [["createCompletion"], ["createChatCompletion"]],
+  };
+  return instrument(client, library, methods[library], options, {
+    normalize: (value, context) => {
+      const data = object(value);
+      const normal = normalizeDefault(value, context.streaming);
+      return library === "ollama"
+        ? {
+            ...normal,
+            text: String(data.response ?? object(data.message).content ?? ""),
+            usage: {
+              input_tokens: data.prompt_eval_count as number | undefined,
+              output_tokens: data.eval_count as number | undefined,
+            },
+          }
+        : normal;
+    },
+  });
+}
+
+/** Observe an OpenAI-compatible Realtime event emitter inside an active refract.run. */
+export function instrumentRealtime(
+  connection: {
+    on(event: "event", listener: (event: unknown) => void): unknown;
+    off(event: "event", listener: (event: unknown) => void): unknown;
+  },
+  options: InstrumentOptions & { provider: string; model: string },
+): () => void {
+  const limit = options.maxOutputChars ?? 1_000_000;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1_000_000)
+    throw new Error("maxOutputChars must be between 1 and 1000000");
+  if (!options.provider.trim() || !options.model.trim())
+    throw new Error("provider and model are required");
+  const within = AsyncLocalStorage.snapshot();
+  const pending = new Map<
+    string,
+    {
+      span: NonNullable<ReturnType<typeof startSpan>>;
+      text: string;
+      truncated: boolean;
+      started: number;
+      first?: number;
+    }
+  >();
+  let stopped = false;
+  const listener = (value: unknown) => {
+    if (stopped) return;
+    try {
+      within(() => {
+        const event = object(value);
+        const response = object(event.response);
+        const id = response.id ?? event.response_id;
+        if (typeof id !== "string" || !id || id.length > 256) return;
+        if (
+          event.type === "response.created" &&
+          !pending.has(id) &&
+          pending.size < 32
+        ) {
+          const span = startSpan({
+            type: "generation",
+            name: `${options.provider}.realtime`,
+            attributes: {
+              provider: options.provider,
+              model: options.model,
+              response_id: id,
+            },
+          });
+          if (span)
+            pending.set(id, {
+              span,
+              text: "",
+              truncated: false,
+              started: performance.now(),
+            });
+        }
+        const capture = pending.get(id);
+        if (!capture) return;
+        if (
+          [
+            "response.text.delta",
+            "response.output_text.delta",
+            "response.audio_transcript.delta",
+            "response.output_audio_transcript.delta",
+          ].includes(String(event.type)) &&
+          typeof event.delta === "string"
+        ) {
+          if (event.delta && capture.first === undefined)
+            capture.first = performance.now() - capture.started;
+          capture.truncated ||=
+            capture.text.length + event.delta.length > limit;
+          capture.text += event.delta.slice(
+            0,
+            Math.max(0, limit - capture.text.length),
+          );
+        }
+        if (event.type === "response.done") {
+          capture.span.finish(
+            { text: capture.text },
+            {
+              ...usage(
+                response.usage,
+                options.provider,
+                options.model,
+                options,
+              ),
+              stream_completed: response.status === "completed",
+              output_truncated: capture.truncated,
+              ...(capture.first === undefined
+                ? {}
+                : { ttft_ms: capture.first }),
+            },
+            response.status === "failed",
+          );
+          pending.delete(id);
+        }
+      });
+    } catch {
+      /* Observation must not interrupt the provider's event handlers. */
+    }
+  };
+  connection.on("event", listener);
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    connection.off("event", listener);
+    for (const capture of pending.values())
+      capture.span.finish(
+        { text: capture.text },
+        {
+          stream_completed: false,
+          capture_incomplete: true,
+          output_truncated: capture.truncated,
+        },
+      );
+    pending.clear();
+  };
 }

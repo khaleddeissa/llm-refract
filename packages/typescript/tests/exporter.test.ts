@@ -73,3 +73,65 @@ it("fails open by default and exposes strict opt-in behavior", async () => {
     }),
   ).rejects.toThrow("offline");
 });
+
+it("durable export persists before resolution and rejects capacity failure", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "refract-acceptance-"));
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+  const exporter = new BatchExporter({
+    endpoint: "http://fixture.invalid",
+    spoolDirectory: directory,
+    durable: true,
+    maxAttempts: 1,
+    flushIntervalMs: 60_000,
+  });
+  try {
+    await refract.run("durable", () => 1, { exporter, failOpen: false });
+    expect(await readdir(directory)).toHaveLength(1);
+    expect(exporter.stats.accepted).toBe(1);
+    const full = new BatchExporter({
+      endpoint: "http://fixture.invalid",
+      spoolDirectory: directory,
+      durable: true,
+      maxSpoolBytes: 1,
+      maxQueueBytes: 1,
+      maxAttempts: 1,
+    });
+    await expect(
+      refract.run("overflow", () => 1, { exporter: full, failOpen: false }),
+    ).rejects.toThrow("capacity");
+    await full.shutdown();
+  } finally {
+    await exporter.shutdown();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("serializes concurrent acceptance and rejects conflicting snapshots", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "refract-concurrent-spool-"));
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+  const exporter = new BatchExporter({
+    endpoint: "http://fixture.invalid",
+    spoolDirectory: directory,
+    durable: true,
+    maxAttempts: 1,
+    flushIntervalMs: 60_000,
+  });
+  try {
+    let snapshot!: import("../src/index.js").Execution;
+    await refract.run("fixture", () => 1, {
+      onComplete: (value) => {
+        snapshot = value;
+      },
+    });
+    await Promise.all([exporter.export(snapshot), exporter.export(snapshot)]);
+    expect(exporter.stats.accepted).toBe(1);
+    expect(await readdir(directory)).toHaveLength(1);
+    await expect(
+      exporter.export({ ...snapshot, name: "different" }),
+    ).rejects.toThrow("different content");
+    expect(exporter.stats.accepted).toBe(1);
+  } finally {
+    await exporter.shutdown();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
