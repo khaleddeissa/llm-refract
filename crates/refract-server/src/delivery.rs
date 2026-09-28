@@ -1,12 +1,15 @@
 //! Durable at-least-once HTTP delivery. Database commits and outbox creation are atomic.
 use anyhow::{Result, anyhow, ensure};
+use aws_credential_types::{Credentials, provider::ProvideCredentials};
 use chrono::Utc;
 use hmac::{Hmac, Mac};
 use refract_storage::{OutboxJob, Store};
 use reqwest::{Client, Url};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::OnceCell;
 
 type HmacSha256 = Hmac<Sha256>;
 #[derive(Clone)]
@@ -21,6 +24,31 @@ struct S3 {
     region: String,
     access_key: String,
     secret_key: String,
+    session_token: Option<String>,
+    provider: Arc<OnceCell<aws_config::default_provider::credentials::DefaultCredentialsChain>>,
+}
+impl S3 {
+    async fn credentials(&self) -> Result<Credentials> {
+        if !self.access_key.is_empty() {
+            return Ok(Credentials::new(
+                &self.access_key,
+                &self.secret_key,
+                self.session_token.clone(),
+                None,
+                "refract-static",
+            ));
+        }
+        let chain = self
+            .provider
+            .get_or_init(|| async {
+                aws_config::default_provider::credentials::DefaultCredentialsChain::builder()
+                    .region(aws_types::region::Region::new(self.region.clone()))
+                    .build()
+                    .await
+            })
+            .await;
+        Ok(chain.provide_credentials().await?)
+    }
 }
 #[derive(Clone)]
 pub struct Delivery {
@@ -82,12 +110,20 @@ impl Delivery {
                             .all(|b| b.is_ascii_alphanumeric() || b".-".contains(&b)),
                     "invalid S3 bucket name"
                 );
+                let access_key = crate::security::secret("REFRACT_S3_ACCESS_KEY")?;
+                let secret_key = crate::security::secret("REFRACT_S3_SECRET_KEY")?;
+                ensure!(
+                    access_key.is_some() == secret_key.is_some(),
+                    "configure both S3 static credentials or use the AWS credential chain"
+                );
                 Ok(S3 {
                     endpoint,
                     bucket,
                     region: variable("REFRACT_S3_REGION")?,
-                    access_key: variable("REFRACT_S3_ACCESS_KEY")?,
-                    secret_key: variable("REFRACT_S3_SECRET_KEY")?,
+                    access_key: access_key.unwrap_or_default(),
+                    secret_key: secret_key.unwrap_or_default(),
+                    session_token: crate::security::secret("REFRACT_S3_SESSION_TOKEN")?,
+                    provider: Arc::default(),
                 })
             })
             .transpose()?;
@@ -134,7 +170,7 @@ impl Delivery {
         };
         let result = self.deliver(store, &job).await;
         match result {
-            Ok(()) => store.acknowledge(&job.id).await?,
+            Ok(()) => store.acknowledge(&job).await?,
             Err(_) => {
                 // Avoid logging signed URLs, payloads or client secrets in transport errors.
                 store.retry(&job).await?;
@@ -212,10 +248,19 @@ impl Delivery {
                     Some(port) => format!("{}:{port}", url.host_str().unwrap_or_default()),
                     None => url.host_str().unwrap_or_default().into(),
                 };
+                let credentials = config.credentials().await?;
+                let token = credentials.session_token();
                 let scope = format!("{}/{}/s3/aws4_request", &date[..8], config.region);
-                let headers = "host;x-amz-content-sha256;x-amz-date";
+                let headers = if token.is_some() {
+                    "host;x-amz-content-sha256;x-amz-date;x-amz-security-token"
+                } else {
+                    "host;x-amz-content-sha256;x-amz-date"
+                };
+                let security_header = token
+                    .map(|t| format!("x-amz-security-token:{t}\n"))
+                    .unwrap_or_default();
                 let canonical = format!(
-                    "{}\n{}\n\nhost:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{date}\n\n{headers}\n{payload_hash}",
+                    "{}\n{}\n\nhost:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{date}\n{security_header}\n{headers}\n{payload_hash}",
                     method.as_str(),
                     url.path()
                 );
@@ -223,25 +268,30 @@ impl Delivery {
                     "AWS4-HMAC-SHA256\n{date}\n{scope}\n{}",
                     hex(Sha256::digest(canonical.as_bytes()))
                 );
-                let key = hmac(format!("AWS4{}", config.secret_key).as_bytes(), &date[..8]);
+                let key = hmac(
+                    format!("AWS4{}", credentials.secret_access_key()).as_bytes(),
+                    &date[..8],
+                );
                 let key = hmac(&key, &config.region);
                 let key = hmac(&key, "s3");
                 let key = hmac(&key, "aws4_request");
                 let auth = format!(
                     "AWS4-HMAC-SHA256 Credential={}/{scope}, SignedHeaders={headers}, Signature={}",
-                    config.access_key,
+                    credentials.access_key_id(),
                     hex(hmac(&key, &string_to_sign))
                 );
-                let response = self
+                let mut request = self
                     .client
                     .request(method, url)
                     .header("authorization", auth)
                     .header("x-amz-date", date)
                     .header("x-amz-content-sha256", payload_hash)
                     .header("content-type", "application/octet-stream")
-                    .body(body)
-                    .send()
-                    .await?;
+                    .body(body);
+                if let Some(token) = token {
+                    request = request.header("x-amz-security-token", token);
+                }
+                let response = request.send().await?;
                 ensure!(
                     response.status().is_success(),
                     "object storage rejected delivery"
@@ -360,6 +410,8 @@ mod tests {
                 region: "test-region".into(),
                 access_key: "test-access".into(),
                 secret_key: "test-secret".into(),
+                session_token: Some("fixture-session".into()),
+                provider: Arc::default(),
             }),
         };
         assert!(delivery.validate_production("production").is_err());
@@ -391,6 +443,13 @@ mod tests {
                 .starts_with("/recordings/local/default/development/")
         );
         assert_eq!(events[0].1, events[1].1);
+        assert_eq!(events[0].2["x-amz-security-token"], "fixture-session");
+        assert!(
+            events[0].2["authorization"]
+                .to_str()
+                .unwrap()
+                .contains("x-amz-security-token")
+        );
         assert_eq!(
             events[0].2["x-amz-content-sha256"],
             hex(Sha256::digest(events[0].3.as_bytes()))

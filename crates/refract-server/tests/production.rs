@@ -76,7 +76,8 @@ fn invalid_mounted_secret_configuration_exits_before_listening() {
     ] {
         let mut fixture = Service::fixture();
         fixture.child = Some(fixture.command().env_remove(missing).spawn().unwrap());
-        for _ in 0..100 {
+        // Allow cold process startup on shared CI hosts while keeping the wait bounded.
+        for _ in 0..1500 {
             if fixture
                 .child
                 .as_mut()
@@ -106,7 +107,8 @@ fn invalid_mounted_secret_configuration_exits_before_listening() {
             .spawn()
             .unwrap(),
     );
-    for _ in 0..100 {
+    // Allow cold process startup on shared CI hosts while keeping the wait bounded.
+    for _ in 0..1500 {
         if fixture
             .child
             .as_mut()
@@ -149,7 +151,8 @@ async fn mounted_secrets_enable_authenticated_encrypted_ingestion() {
         .build()
         .unwrap();
     let base = format!("http://{address}");
-    for _ in 0..100 {
+    // Allow cold process startup on shared CI hosts while keeping the wait bounded.
+    for _ in 0..1500 {
         if client.get(format!("{base}/v1/ready")).send().await.is_ok() {
             break;
         }

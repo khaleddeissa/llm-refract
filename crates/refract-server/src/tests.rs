@@ -46,7 +46,7 @@ async fn request(
             .unwrap_or_else(|_| json!({"body":String::from_utf8_lossy(&bytes)})),
     )
 }
-fn keys() -> Security {
+pub(super) fn keys() -> Security {
     Security::from_keys(&json!([
         {"id":"writer-a","key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","role":"writer","organization":"company","project":"a","environment":"test"},
         {"id":"reader-a","key":"rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr","role":"reader","organization":"company","project":"a","environment":"test"},
@@ -472,5 +472,108 @@ async fn tampered_credentials_cannot_override_scope_or_admin_role() {
             .await
             .1["pending"],
         0
+    );
+}
+
+#[tokio::test]
+async fn managed_keys_vector_search_and_audit_lifecycle_enforce_roles() {
+    let store = Store::open("sqlite::memory:").await.unwrap();
+    let app = router_with_security(store, keys());
+    let admin = Some("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+    let reader = Some("rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr");
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            "/v1/admin/keys",
+            reader,
+            json!({"role":"admin","expires_in_days":1})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (status, issued) = request(
+        &app,
+        "POST",
+        "/v1/admin/keys",
+        admin,
+        json!({"role":"writer","expires_in_days":1}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let token = issued["key"].as_str();
+    assert_eq!(
+        request(&app, "POST", "/v1/runs", token, json!(fixture()))
+            .await
+            .0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/v1/runs/demo-1/embedding",
+            token,
+            json!({"model":"fixture","values":[1.0,0.0]})
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    let (status, matches) = request(
+        &app,
+        "POST",
+        "/v1/search/vector",
+        reader,
+        json!({"embedding":{"model":"fixture","values":[1.0,0.0]},"limit":5}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(matches[0]["run_id"], "demo-1");
+    assert_eq!(
+        request(
+            &app,
+            "PUT",
+            "/v1/runs/demo-1/embedding",
+            reader,
+            json!({"model":"fixture","values":[1.0]})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (_, metadata) = request(&app, "GET", "/v1/admin/keys", admin, Value::Null).await;
+    assert!(!metadata.to_string().contains(token.unwrap()));
+    assert_eq!(
+        request(
+            &app,
+            "DELETE",
+            &format!("/v1/admin/keys/{}", issued["id"].as_str().unwrap()),
+            admin,
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        request(&app, "GET", "/v1/runs", token, Value::Null).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (status, export) = request(&app, "GET", "/v1/admin/audit/export", admin, Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!export.to_string().contains(token.unwrap()));
+    assert_eq!(
+        request(
+            &app,
+            "POST",
+            "/v1/admin/audit/expire",
+            admin,
+            json!({"days":1})
+        )
+        .await
+        .0,
+        StatusCode::OK
     );
 }

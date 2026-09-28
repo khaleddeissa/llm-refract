@@ -1,4 +1,9 @@
+mod controls;
 mod delivery;
+mod identity_api;
+pub mod login;
+pub mod oidc;
+mod otel;
 pub mod security;
 
 use axum::{
@@ -15,11 +20,7 @@ use refract_storage::{Encryption, RunFilter, SnapshotConflict, Store, StoreOptio
 use security::{Role, Security};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::{collections::BTreeSet, time::Instant};
 use tower_http::services::ServeDir;
 
 type ApiResult<T> = Result<T, ApiError>;
@@ -51,7 +52,6 @@ struct AppState {
     store: Store,
     security: Security,
     redaction: refract_collector::RedactionPolicy,
-    requests: Arc<Mutex<HashMap<String, (Instant, u32)>>>,
 }
 /// Development router with a local admin identity. Use router_with_security for shared services.
 pub fn router(store: Store) -> Router {
@@ -73,14 +73,26 @@ fn router_with_policy(
         store,
         security,
         redaction,
-        requests: Arc::default(),
     };
     Router::new()
         .route("/v1/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/v1/ready", get(ready))
+        .route("/v1/auth/config", get(login::config))
         .route("/v1/runs", get(list).post(create))
+        .route("/v1/traces", post(otel::http))
+        .route_service(
+            "/opentelemetry.proto.collector.trace.v1.TraceService/Export",
+            otel::grpc(),
+        )
         .route("/v1/runs/batch", post(batch))
         .route("/v1/search", get(search))
+        .route("/v1/search/vector", post(controls::vector_search))
+        .route(
+            "/v1/runs/{id}/embedding",
+            axum::routing::put(controls::embedding),
+        )
+        .route("/v1/admin/audit/export", get(controls::audit_export))
+        .route("/v1/admin/audit/expire", post(controls::audit_expire))
         .route("/v1/runs/{id}", get(inspect))
         .route("/v1/runs/{id}/events", get(events))
         .route("/v1/runs/{id}/metrics", get(metrics))
@@ -91,15 +103,31 @@ fn router_with_policy(
         .route("/v1/diff", post(diff))
         .route("/v1/eval", post(evaluate))
         .route("/v1/admin/audit", get(audit_log))
+        .route(
+            "/v1/admin/keys",
+            get(identity_api::keys).post(identity_api::create_key),
+        )
+        .route(
+            "/v1/admin/keys/{id}",
+            axum::routing::delete(identity_api::revoke_key),
+        )
+        .route(
+            "/v1/admin/principals",
+            axum::routing::put(identity_api::provision),
+        )
         .route("/v1/admin/retention", post(retention))
         .route("/v1/admin/outbox", get(outbox))
+        .route("/v1/admin/encryption/rotate", post(controls::rotate))
         .layer(DefaultBodyLimit::max(16 * 1024 * 1024))
         .layer(middleware::from_fn_with_state(state.clone(), authorize))
         .with_state(state)
 }
 async fn authorize(State(state): State<AppState>, mut request: Request, next: Next) -> Response {
     let path = request.uri().path().to_owned();
-    if matches!(path.as_str(), "/v1/health" | "/v1/ready") {
+    if matches!(
+        path.as_str(),
+        "/v1/health" | "/v1/ready" | "/v1/auth/config"
+    ) {
         return next.run(request).await;
     }
     let bearer = request
@@ -107,7 +135,17 @@ async fn authorize(State(state): State<AppState>, mut request: Request, next: Ne
         .get("authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
-    let Some(identity) = state.security.authenticate(bearer) else {
+    let identity = match state
+        .security
+        .authenticate_store(&state.store, bearer)
+        .await
+    {
+        Ok(identity) => identity,
+        Err(error) => return internal(error).into_response(),
+    };
+    let Some(identity) = identity else {
+        // Do not persist supplied tokens, query strings or arbitrary headers.
+        eprintln!("authentication failed");
         return ApiError(
             StatusCode::UNAUTHORIZED,
             "valid Bearer API key required".into(),
@@ -118,22 +156,18 @@ async fn authorize(State(state): State<AppState>, mut request: Request, next: Ne
     let method = request.method().clone();
     let readonly = method == Method::GET
         || method == Method::HEAD
+        || path == "/v1/search/vector"
         || path == "/v1/diff"
         || path == "/v1/eval"
         || path.ends_with("/replay");
     let forbidden = path.starts_with("/v1/admin/") && identity.role != Role::Admin
         || !readonly && identity.role == Role::Reader;
-    let limited = {
-        let mut requests = state.requests.lock().unwrap_or_else(|e| e.into_inner());
-        let (start, count) = requests
-            .entry(identity.id.clone())
-            .or_insert((Instant::now(), 0));
-        if start.elapsed().as_secs() >= 60 {
-            *start = Instant::now();
-            *count = 0;
-        }
-        *count = count.saturating_add(1);
-        *count > state.security.requests_per_minute
+    let limited = match store
+        .allow_request(&identity.id, state.security.requests_per_minute)
+        .await
+    {
+        Ok(allowed) => !allowed,
+        Err(error) => return internal(error).into_response(),
     };
     request.extensions_mut().insert(store.clone());
     request.extensions_mut().insert(state.redaction.clone());
@@ -443,9 +477,17 @@ pub async fn serve() -> anyhow::Result<()> {
     let address = std::env::var("REFRACT_BIND").unwrap_or("127.0.0.1:8000".into());
     let security = Security::from_env()?;
     let delivery = delivery::Delivery::from_env()?;
-    let encryption = security::secret("REFRACT_ENCRYPTION_KEY")?
-        .map(|key| Encryption::from_base64(&key))
-        .transpose()?;
+    let single_key = security::secret("REFRACT_ENCRYPTION_KEY")?;
+    let keyring = security::secret("REFRACT_ENCRYPTION_KEYS")?;
+    anyhow::ensure!(
+        single_key.is_none() || keyring.is_none(),
+        "configure either a single encryption key or a keyring"
+    );
+    let encryption = match (single_key, keyring) {
+        (Some(key), _) => Some(Encryption::from_base64(&key)?),
+        (_, Some(ring)) => Some(Encryption::from_keyring_json(&ring)?),
+        _ => None,
+    };
     let mode = std::env::var("REFRACT_MODE").unwrap_or("local".into());
     security::validate_mode(
         &mode,
@@ -462,12 +504,28 @@ pub async fn serve() -> anyhow::Result<()> {
         },
     )
     .await?;
+    let rotation = std::env::var("REFRACT_ENCRYPTION_ROTATE_BATCH")
+        .ok()
+        .map(|v| v.parse::<i64>())
+        .transpose()?;
+    anyhow::ensure!(
+        rotation.is_none_or(|v| (1..=1000).contains(&v)),
+        "rotation batch must be 1..1000"
+    );
+    let runtime_url = security::secret("REFRACT_RUNTIME_DATABASE_URL")?;
+    let runtime_store = match runtime_url {
+        Some(url) => store.runtime_pool(&url).await?,
+        None => store.clone(),
+    };
     let worker_store = store.clone();
     let retention = security.retention;
     let worker = tokio::spawn(async move {
         let mut last_retention = Instant::now() - std::time::Duration::from_secs(3600);
         loop {
             if last_retention.elapsed().as_secs() >= 3600 {
+                if worker_store.expire_rate_buckets().await.is_err() {
+                    eprintln!("rate bucket cleanup failed");
+                }
                 if let Some(age) = retention {
                     let before = chrono::Utc::now()
                         - chrono::Duration::from_std(age).expect("validated retention");
@@ -493,7 +551,33 @@ pub async fn serve() -> anyhow::Result<()> {
                         }
                     }
                 }
+                if worker_store
+                    .expire_traces(chrono::Utc::now().timestamp() - 86400)
+                    .await
+                    .is_err()
+                {
+                    eprintln!("trace assembly expiry failed");
+                }
                 last_retention = Instant::now();
+            }
+            if let Some(limit) = rotation {
+                match worker_store.scopes().await {
+                    Ok(scopes) => {
+                        for scope in scopes {
+                            if worker_store
+                                .scoped(scope)
+                                .rotate_encryption(limit)
+                                .await
+                                .is_err()
+                            {
+                                eprintln!(
+                                    "encryption rotation failed; retain old keys and inspect database health"
+                                );
+                            }
+                        }
+                    }
+                    Err(_) => eprintln!("encryption rotation scope enumeration failed"),
+                }
             }
             match delivery.process_one(&worker_store).await {
                 Ok(true) => continue,
@@ -508,7 +592,7 @@ pub async fn serve() -> anyhow::Result<()> {
     }
     let ui = std::env::var("REFRACT_UI_DIR").unwrap_or("apps/viewer/dist".into());
     let app = router_with_policy(
-        store,
+        runtime_store,
         security,
         refract_collector::RedactionPolicy::from_env()?,
     )

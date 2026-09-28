@@ -1,4 +1,12 @@
+mod controls;
+mod identities;
+mod rotation;
+mod row_security;
+mod traces;
+pub use identities::{KeyMetadata, Principal};
+pub use traces::TraceSpan;
 mod encryption;
+pub use controls::{Embedding, VectorMatch};
 pub use encryption::Encryption;
 
 use anyhow::{Result, anyhow, ensure};
@@ -50,6 +58,7 @@ pub struct Store {
     pool: AnyPool,
     scope: Scope,
     options: StoreOptions,
+    rls: bool,
 }
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -140,6 +149,7 @@ pub struct OutboxJob {
     pub target: String,
     pub operation: String,
     pub attempts: i64,
+    pub lease_token: String,
 }
 
 const FILTER: &str = " FROM runs r WHERE r.organization=$1 AND r.project=$2 AND r.environment=$3
@@ -173,18 +183,9 @@ impl Store {
             pool,
             scope: Scope::default(),
             options,
+            rls: false,
         };
-        // Detect lost/wrong keys during startup rather than reporting healthy then failing reads.
-        let encrypted = sqlx::query("SELECT organization,project,environment,id,execution FROM runs WHERE execution LIKE 'enc:%' LIMIT 1")
-            .fetch_optional(&store.pool).await?;
-        if let Some(row) = encrypted {
-            let scoped = store.scoped(Scope {
-                organization: row.try_get("organization")?,
-                project: row.try_get("project")?,
-                environment: row.try_get("environment")?,
-            });
-            scoped.decode(row.try_get("id")?, row.try_get("execution")?)?;
-        }
+        store.validate_encryption_keys().await?;
         store.backfill().await?;
         Ok(store)
     }
@@ -198,7 +199,9 @@ impl Store {
         &self.scope
     }
     pub async fn ready(&self) -> Result<()> {
-        sqlx::query("SELECT 1").execute(&self.pool).await?;
+        sqlx::query("SELECT 1")
+            .execute(&mut *self.connection().await?)
+            .await?;
         Ok(())
     }
     fn encode(&self, run: &Run) -> Result<String> {
@@ -222,7 +225,7 @@ impl Store {
     }
     async fn backfill(&self) -> Result<()> {
         let rows = sqlx::query("SELECT organization,project,environment,id,execution,indexed FROM runs WHERE indexed=0 OR ($1=1 AND execution NOT LIKE 'enc:v1:%')")
-            .bind(i64::from(self.options.encryption.is_some())).fetch_all(&self.pool).await?;
+            .bind(i64::from(self.options.encryption.is_some())).fetch_all(&mut *self.connection().await?).await?;
         for row in rows {
             let scoped = self.scoped(Scope {
                 organization: row.try_get("organization")?,
@@ -233,7 +236,7 @@ impl Store {
             let mut run = scoped.decode(&id, row.try_get("execution")?)?;
             run.validate()?;
             run.redact();
-            let mut tx = self.pool.begin().await?;
+            let mut tx = self.transaction().await?;
             if row.try_get::<i64, _>("indexed")? == 0 {
                 scoped.index_events(&mut tx, &run).await?;
             }
@@ -246,14 +249,14 @@ impl Store {
     }
     /// Immutable snapshots. The same ID may independently exist in different authenticated scopes.
     pub async fn insert(&self, run: &Run) -> Result<bool> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.transaction().await?;
         let inserted = self.insert_tx(&mut tx, run).await?;
         tx.commit().await?;
         Ok(inserted)
     }
     /// Atomic batch with content-checked idempotency, including duplicates within a batch.
     pub async fn insert_batch(&self, runs: &[Run]) -> Result<BatchReceipt> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.transaction().await?;
         let mut accepted = 0;
         for run in runs {
             if self.insert_tx(&mut tx, run).await? {
@@ -326,7 +329,7 @@ impl Store {
     /// Preserve the stored envelope for delivery. Payloads are encrypted when encryption is configured.
     pub async fn stored_payload(&self, id: &str) -> Result<Option<String>> {
         let row: Option<(String,)> = sqlx::query_as("SELECT execution FROM runs WHERE organization=$1 AND project=$2 AND environment=$3 AND id=$4")
-            .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).fetch_optional(&self.pool).await?;
+            .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).fetch_optional(&mut *self.connection().await?).await?;
         Ok(row.map(|r| r.0))
     }
     pub async fn list(&self) -> Result<Vec<Run>> {
@@ -375,10 +378,10 @@ impl Store {
         let rows: Vec<(String, String)> = bind_filter!(sqlx::query_as(&select))
             .bind(limit)
             .bind(offset)
-            .fetch_all(&self.pool)
+            .fetch_all(&mut *self.connection().await?)
             .await?;
         let (total,): (i64,) = bind_filter!(sqlx::query_as(&count))
-            .fetch_one(&self.pool)
+            .fetch_one(&mut *self.connection().await?)
             .await?;
         Ok(SearchPage {
             runs: rows
@@ -399,7 +402,7 @@ impl Store {
     ) -> Result<()> {
         sqlx::query("INSERT INTO audit_log(id,organization,project,environment,actor,action,resource,status,timestamp) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)")
             .bind(refract_core::id("audit")).bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment)
-            .bind(actor).bind(action).bind(resource).bind(i64::from(status)).bind(Utc::now().to_rfc3339()).execute(&self.pool).await?;
+            .bind(actor).bind(action).bind(resource).bind(i64::from(status)).bind(Utc::now().to_rfc3339()).execute(&mut *self.connection().await?).await?;
         Ok(())
     }
     pub async fn audit_log(&self, limit: i64, offset: i64) -> Result<Vec<AuditEntry>> {
@@ -408,7 +411,7 @@ impl Store {
             "invalid audit pagination"
         );
         let rows = sqlx::query("SELECT id,actor,action,resource,status,timestamp FROM audit_log WHERE organization=$1 AND project=$2 AND environment=$3 ORDER BY timestamp DESC,id DESC LIMIT $4 OFFSET $5")
-            .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(limit).bind(offset).fetch_all(&self.pool).await?;
+            .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(limit).bind(offset).fetch_all(&mut *self.connection().await?).await?;
         rows.into_iter()
             .map(|r| {
                 Ok(AuditEntry {
@@ -425,14 +428,24 @@ impl Store {
     /// Delete scoped snapshots using server receipt time, never attacker-controlled event time.
     /// Object deletion is queued transactionally; audit history is retained separately.
     pub async fn retain_since(&self, before: DateTime<Utc>) -> Result<u64> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.transaction().await?;
         let ids: Vec<(String,)> = sqlx::query_as("SELECT id FROM runs WHERE organization=$1 AND project=$2 AND environment=$3 AND received_at < $4")
             .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(before.to_rfc3339()).fetch_all(&mut *tx).await?;
         for (id,) in &ids {
+            let leases = sqlx::query("SELECT target,available_at FROM outbox WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4 AND lease_token<>''")
+                .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).fetch_all(&mut *tx).await?;
+            sqlx::query("DELETE FROM run_embeddings WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4")
+                .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM outbox WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4")
                 .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).execute(&mut *tx).await?;
             for target in &self.options.outbox_targets {
                 self.enqueue(&mut tx, id, target, "delete").await?;
+                for lease in &leases {
+                    if lease.try_get::<String, _>("target")? == *target {
+                        sqlx::query("UPDATE outbox SET available_at=$1 WHERE organization=$2 AND project=$3 AND environment=$4 AND run_id=$5 AND target=$6 AND operation='delete'")
+                            .bind(lease.try_get::<i64,_>("available_at")?).bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(id).bind(target).execute(&mut *tx).await?;
+                    }
+                }
             }
             // Explicit event cleanup also works for SQLite connections with foreign_keys disabled.
             sqlx::query("DELETE FROM run_events WHERE organization=$1 AND project=$2 AND environment=$3 AND run_id=$4")
@@ -447,16 +460,19 @@ impl Store {
     pub async fn claim_outbox(&self) -> Result<Option<OutboxJob>> {
         let now = Utc::now().timestamp();
         let rows = sqlx::query("SELECT id,organization,project,environment,run_id,target,operation,attempts,available_at FROM outbox WHERE available_at <= $1 ORDER BY available_at,id LIMIT 10")
-            .bind(now).fetch_all(&self.pool).await?;
+            .bind(now).fetch_all(&mut *self.connection().await?).await?;
         for r in rows {
             let id: String = r.try_get("id")?;
-            let claimed =
-                sqlx::query("UPDATE outbox SET available_at=$1 WHERE id=$2 AND available_at=$3")
-                    .bind(now + 120)
-                    .bind(&id)
-                    .bind(r.try_get::<i64, _>("available_at")?)
-                    .execute(&self.pool)
-                    .await?;
+            let lease_token = refract_core::id("lease");
+            let claimed = sqlx::query(
+                "UPDATE outbox SET available_at=$1,lease_token=$4 WHERE id=$2 AND available_at=$3",
+            )
+            .bind(now + 120)
+            .bind(&id)
+            .bind(r.try_get::<i64, _>("available_at")?)
+            .bind(&lease_token)
+            .execute(&mut *self.connection().await?)
+            .await?;
             if claimed.rows_affected() == 1 {
                 return Ok(Some(OutboxJob {
                     id,
@@ -469,30 +485,39 @@ impl Store {
                     target: r.try_get("target")?,
                     operation: r.try_get("operation")?,
                     attempts: r.try_get("attempts")?,
+                    lease_token,
                 }));
             }
         }
         Ok(None)
     }
-    pub async fn acknowledge(&self, id: &str) -> Result<()> {
-        sqlx::query("DELETE FROM outbox WHERE id=$1")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
+    pub async fn acknowledge(&self, job: &OutboxJob) -> Result<()> {
+        let deleted =
+            sqlx::query("DELETE FROM outbox WHERE id=$1 AND lease_token=$2 AND available_at>$3")
+                .bind(&job.id)
+                .bind(&job.lease_token)
+                .bind(Utc::now().timestamp())
+                .execute(&mut *self.connection().await?)
+                .await?;
+        ensure!(
+            deleted.rows_affected() == 1,
+            "outbox lease expired or was replaced"
+        );
         Ok(())
     }
     pub async fn retry(&self, job: &OutboxJob) -> Result<()> {
         let delay = (1_i64 << job.attempts.saturating_add(1).clamp(0, 12)).min(3600);
-        sqlx::query("UPDATE outbox SET attempts=attempts+1,available_at=$1 WHERE id=$2")
+        sqlx::query("UPDATE outbox SET attempts=attempts+1,available_at=$1,lease_token='' WHERE id=$2 AND lease_token=$3")
             .bind(Utc::now().timestamp() + delay)
             .bind(&job.id)
-            .execute(&self.pool)
+            .bind(&job.lease_token)
+            .execute(&mut *self.connection().await?)
             .await?;
         Ok(())
     }
     pub async fn scopes(&self) -> Result<Vec<Scope>> {
         let rows = sqlx::query("SELECT DISTINCT organization,project,environment FROM runs")
-            .fetch_all(&self.pool)
+            .fetch_all(&mut *self.connection().await?)
             .await?;
         rows.into_iter()
             .map(|r| {
@@ -511,7 +536,7 @@ impl Store {
         .bind(&self.scope.organization)
         .bind(&self.scope.project)
         .bind(&self.scope.environment)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *self.connection().await?)
         .await?;
         Ok(count)
     }
@@ -570,7 +595,7 @@ mod tests {
                 .fetch_one(&store.pool)
                 .await
                 .unwrap();
-        assert_eq!(versions, 2);
+        assert_eq!(versions, 5);
         store.pool.close().await;
         std::fs::remove_file(path).unwrap();
     }
@@ -682,7 +707,7 @@ mod tests {
         );
         let job = store.claim_outbox().await.unwrap().unwrap();
         assert!(store.claim_outbox().await.unwrap().is_none());
-        store.acknowledge(&job.id).await.unwrap();
+        store.acknowledge(&job).await.unwrap();
         assert_eq!(store.outbox_pending().await.unwrap(), 0);
         assert_eq!(
             store

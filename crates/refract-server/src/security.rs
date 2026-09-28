@@ -33,6 +33,8 @@ pub struct Security {
     pub identities: Vec<Identity>,
     pub requests_per_minute: u32,
     pub retention: Option<Duration>,
+    pub oidc: Option<crate::oidc::Oidc>,
+    pub login: Option<crate::login::Login>,
 }
 impl Default for Security {
     fn default() -> Self {
@@ -40,6 +42,8 @@ impl Default for Security {
             identities: vec![],
             requests_per_minute: 600,
             retention: None,
+            oidc: None,
+            login: None,
         }
     }
 }
@@ -93,10 +97,14 @@ impl Security {
             Some(value) => Self::from_keys(&value)?,
             None => Self::default(),
         };
+        security.oidc = crate::oidc::Oidc::from_env()?;
+        security.login =
+            crate::login::Login::from_env(security.oidc.as_ref().map(|o| o.issuer.as_str()))?;
         ensure!(
             std::env::var("REFRACT_REQUIRE_AUTH").as_deref() != Ok("1")
-                || !security.identities.is_empty(),
-            "REFRACT_REQUIRE_AUTH=1 requires REFRACT_API_KEYS"
+                || !security.identities.is_empty()
+                || security.oidc.is_some(),
+            "REFRACT_REQUIRE_AUTH=1 requires API keys or OIDC"
         );
         if let Ok(value) = std::env::var("REFRACT_RATE_LIMIT") {
             security.requests_per_minute = value.parse()?;
@@ -115,8 +123,41 @@ impl Security {
         }
         Ok(security)
     }
+    pub async fn authenticate_store(
+        &self,
+        store: &refract_storage::Store,
+        bearer: Option<&str>,
+    ) -> Result<Option<Identity>> {
+        if let Some(identity) = self.authenticate(bearer) {
+            return Ok(Some(identity));
+        }
+        let Some(token) = bearer.filter(|value| value.len() <= 16384) else {
+            return Ok(None);
+        };
+        let digest = format!("{:x}", Sha256::digest(token.as_bytes()));
+        let principal = if token.starts_with("rfr_") {
+            store.resolve_key(&digest).await?
+        } else if let Some(oidc) = &self.oidc {
+            match oidc.subject(token).await {
+                Ok(subject) => store.resolve_subject(&oidc.issuer, &subject).await?,
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+        principal
+            .map(|principal| {
+                Ok(Identity {
+                    id: principal.id,
+                    scope: principal.scope,
+                    role: serde_json::from_value(serde_json::Value::String(principal.role))?,
+                    digest: [0; 32],
+                })
+            })
+            .transpose()
+    }
     pub fn authenticate(&self, bearer: Option<&str>) -> Option<Identity> {
-        if self.identities.is_empty() {
+        if self.identities.is_empty() && self.oidc.is_none() {
             return Some(Identity {
                 id: "local".into(),
                 scope: Scope::default(),
@@ -174,7 +215,7 @@ pub(crate) fn validate_mode(
     );
     if mode == "production" {
         ensure!(
-            !security.identities.is_empty(),
+            !security.identities.is_empty() || security.oidc.is_some(),
             "production mode requires REFRACT_API_KEYS or REFRACT_API_KEYS_FILE"
         );
         ensure!(
