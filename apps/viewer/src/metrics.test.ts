@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import fixture from "../../../tests/fixtures/simple-run/execution.json" with { type: "json" };
 import type { Execution } from "../../../packages/typescript/src/index.js";
 import { difference, metrics } from "./metrics";
-import { layout } from "./graph";
+import { layout, visibleRows } from "./graph";
 it("uses wall latency, sums available usage, and distinguishes unknown cost", () => {
   const run = structuredClone(fixture) as unknown as Execution;
   const original = metrics(run);
@@ -42,4 +42,19 @@ it("draws only recorded parent edges, including independent roots", () => {
   run.events[1].parent_id = null;
   const roots = layout(run.events);
   expect(roots[1].x).toBe(roots[0].x);
+});
+
+it("bounds graph rendering and layout for 100,000 nested events", () => {
+  const template = (fixture as unknown as Execution).events[0];
+  const events = Array.from({ length: 100_000 }, (_, i) => ({
+    ...template,
+    id: String(i),
+    parent_id: i ? String(i - 1) : null,
+  }));
+  const nodes = layout(events);
+  expect(nodes.length).toBe(100_000);
+  expect(nodes[99_999].x).toBeLessThan(9000);
+  const [first, last] = visibleRows(nodes.length, 780_000, 500, 1);
+  expect(first).toBe(9996);
+  expect(last - first).toBeLessThan(20);
 });

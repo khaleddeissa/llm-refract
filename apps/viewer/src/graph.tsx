@@ -1,12 +1,23 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ExecutionEvent } from "../../../packages/typescript/src/index.js";
 export function layout(events: ExecutionEvent[]) {
   const depth = new Map<string, number>();
   return events.map((event, index) => {
     const level = event.parent_id ? (depth.get(event.parent_id) ?? -1) + 1 : 0;
     depth.set(event.id, level);
-    return { event, x: 24 + level * 250, y: 24 + index * 78 };
+    return { event, x: 24 + Math.min(level, 32) * 250, y: 24 + index * 78 };
   });
+}
+/** Render only rows intersecting the viewport, with a small keyboard/scroll overscan. */
+export function visibleRows(
+  count: number,
+  top: number,
+  height: number,
+  zoom: number,
+) {
+  const first = Math.max(0, Math.floor(top / zoom / 78) - 4);
+  const last = Math.min(count, Math.ceil((top + height) / zoom / 78) + 4);
+  return [first, last] as const;
 }
 export function ExecutionGraph({
   events,
@@ -18,9 +29,46 @@ export function ExecutionGraph({
   onSelect: (event: ExecutionEvent) => void;
 }) {
   const [zoom, setZoom] = useState(1);
-  const nodes = layout(events);
-  const byId = new Map(nodes.map((node) => [node.event.id, node]));
-  const width = Math.max(560, ...nodes.map((node) => node.x + 242));
+  const viewport = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, height: 500 });
+  const nodes = useMemo(() => layout(events), [events]);
+  const byId = useMemo(
+    () => new Map(nodes.map((node) => [node.event.id, node])),
+    [nodes],
+  );
+  const width = useMemo(
+    () => nodes.reduce((max, node) => Math.max(max, node.x + 242), 560),
+    [nodes],
+  );
+  useEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() =>
+      setPosition({ top: element.scrollTop, height: element.clientHeight }),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const node = selected ? byId.get(selected) : undefined;
+    const element = viewport.current;
+    if (!element || !node) return;
+    const y = node.y * zoom;
+    if (
+      y < element.scrollTop ||
+      y + 54 * zoom > element.scrollTop + element.clientHeight
+    ) {
+      element.scrollTop = Math.max(0, y - 78 * zoom);
+      setPosition({ top: element.scrollTop, height: element.clientHeight });
+    }
+  }, [selected, byId, zoom]);
+  const [first, last] = visibleRows(
+    nodes.length,
+    position.top,
+    position.height,
+    zoom,
+  );
+  const visible = nodes.slice(first, last);
   const height = Math.max(130, nodes.length * 78 + 32);
   return (
     <section className="graph-panel" aria-label="Execution graph">
@@ -39,7 +87,16 @@ export function ExecutionGraph({
           />
         </label>
       </div>
-      <div className="graph-scroll">
+      <div
+        className="graph-scroll"
+        ref={viewport}
+        onScroll={(event) =>
+          setPosition({
+            top: event.currentTarget.scrollTop,
+            height: event.currentTarget.clientHeight,
+          })
+        }
+      >
         <svg
           viewBox={`0 0 ${width} ${height}`}
           width={width * zoom}
@@ -59,7 +116,7 @@ export function ExecutionGraph({
               <path d="M0,0 L8,4 L0,8" fill="#77bca5" />
             </marker>
           </defs>
-          {nodes.map((node) => {
+          {visible.map((node) => {
             const parent = node.event.parent_id
               ? byId.get(node.event.parent_id)
               : undefined;
@@ -72,7 +129,7 @@ export function ExecutionGraph({
               />
             ) : null;
           })}
-          {nodes.map(({ event, x, y }) => (
+          {visible.map(({ event, x, y }) => (
             <g
               key={event.id}
               transform={`translate(${x},${y})`}
@@ -110,7 +167,8 @@ export function ExecutionGraph({
       <p className="graph-caption">
         Edges show recorded parent relationships. Independent roots have no
         inferred edges. Select a node to inspect its input, output, and metrics
-        below.
+        below. Deep nesting beyond 32 levels shares a column; scroll to reveal
+        more events.
       </p>
     </section>
   );

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
   Execution,
   ExecutionEvent,
 } from "../../../packages/typescript/src/index.js";
 import { request, setApiKey, download } from "./api";
+import { beginLogin, completeLogin, type LoginConfiguration } from "./login";
 import { ExecutionGraph } from "./graph";
 import { metrics, number, difference } from "./metrics";
 import "./style.css";
@@ -23,6 +24,8 @@ interface SemanticReport {
 function App() {
   const [runs, setRuns] = useState<Execution[]>([]);
   const [run, setRun] = useState<Execution>();
+  const selectedRunId = useRef<string | undefined>(undefined);
+  const refreshSequence = useRef(0);
   const [selected, setSelected] = useState<ExecutionEvent>();
   const [error, setError] = useState("");
   const [result, setResult] = useState<unknown>();
@@ -36,6 +39,7 @@ function App() {
       : undefined;
   const [credential, setCredential] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
+  const [login, setLogin] = useState<LoginConfiguration>();
   const [filters, setFilters] = useState({
     q: "",
     status: "",
@@ -49,12 +53,14 @@ function App() {
   const compare = runs.find((item) => item.id === compareId);
   const candidate = compare ? metrics(compare) : undefined;
   const choose = (r: Execution) => {
+    selectedRunId.current = r.id;
     setRun(r);
     setSelected(r.events[0]);
     setResult(undefined);
     setCompareId("");
   };
   async function refresh(page = 0) {
+    const sequence = ++refreshSequence.current;
     setError("");
     setLoading(true);
     try {
@@ -64,26 +70,55 @@ function App() {
       const loaded = await request<{ runs: Execution[]; total: number }>(
         `/v1/search?${query}`,
       );
+      if (sequence !== refreshSequence.current) return;
       setRuns(loaded.runs);
       setOffset(page);
       setTotal(loaded.total);
       if (
         loaded.runs.length &&
-        !loaded.runs.some((item) => item.id === run?.id)
+        !loaded.runs.some((item) => item.id === selectedRunId.current)
       )
         choose(loaded.runs[0]);
       if (!loaded.runs.length) {
+        selectedRunId.current = undefined;
         setRun(undefined);
         setSelected(undefined);
       }
     } catch (e) {
-      setError(String(e));
+      if (sequence === refreshSequence.current) setError(String(e));
     } finally {
-      setLoading(false);
+      if (sequence === refreshSequence.current) setLoading(false);
     }
   }
   useEffect(() => {
-    void refresh();
+    void (async () => {
+      try {
+        const response = await fetch("/v1/auth/config");
+        if (response.ok) {
+          const auth = (await response.json()) as {
+            enabled: boolean;
+            configuration?: LoginConfiguration;
+          };
+          if (auth.enabled && auth.configuration) {
+            setLogin(auth.configuration);
+            const callback = new URL(window.location.href);
+            if (
+              callback.searchParams.has("code") ||
+              callback.searchParams.has("error")
+            ) {
+              // Remove authorization codes from browser history before any asynchronous exchange.
+              window.history.replaceState(null, "", window.location.pathname);
+              if (await completeLogin(auth.configuration, callback))
+                setAuthenticated(true);
+            }
+          }
+        }
+        await refresh();
+      } catch (failure) {
+        setError(String(failure));
+        setLoading(false);
+      }
+    })();
   }, []);
   async function action(kind: "replay" | "fork" | "diff") {
     if (!run) return;
@@ -229,7 +264,21 @@ function App() {
             void refresh();
           }}
         >
-          <label htmlFor="api-key">API key (tab memory only)</label>
+          {login && (
+            <button
+              type="button"
+              onClick={() => {
+                void beginLogin(login)
+                  .then((url) => window.location.assign(url))
+                  .catch((error) => setError(String(error)));
+              }}
+            >
+              Sign in with SSO
+            </button>
+          )}
+          <label htmlFor="api-key">
+            API key or access token (tab memory only)
+          </label>
           <input
             id="api-key"
             type="password"
