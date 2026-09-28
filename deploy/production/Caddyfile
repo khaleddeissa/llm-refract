@@ -6,5 +6,5 @@
         Referrer-Policy "no-referrer"
         Cache-Control "no-store"
     }
-    reverse_proxy refract:8000
+    reverse_proxy h2c://refract:8000
 }
