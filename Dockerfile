@@ -12,7 +12,7 @@ RUN npm ci && npm run build
 
 
 # Build the Rust CLI and server.
-FROM rust:1.94-bookworm AS rust
+FROM rust:1.98-bookworm AS rust
 
 WORKDIR /build
 
