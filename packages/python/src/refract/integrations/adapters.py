@@ -134,7 +134,7 @@ def instrument_bedrock_native(client, **options) -> Instrumentation:
     import functools
     import inspect
 
-    from refract.instrumentation import _AsyncStream, _Capture, _Stream
+    from refract.instrumentation import _AsyncStream, _Capture, _nested_generation, _Stream
 
     handle = Instrumentation(**options)
     for name in ("invoke_model", "invoke_model_with_response_stream"):
@@ -145,6 +145,8 @@ def instrument_bedrock_native(client, **options) -> Instrumentation:
         def install(method, streaming):
             @functools.wraps(method)
             def wrapper(*args, **kwargs):
+                if _nested_generation():
+                    return method(*args, **kwargs)
                 capture = None
                 try:
                     request = _body(kwargs.get("body", {}))
@@ -241,13 +243,6 @@ def instrument_library(client, library: str, **options) -> Instrumentation:
     owner = client
     handle = Instrumentation(**options)
 
-    def request(args, kwargs):
-        return {
-            **kwargs,
-            "input": args[0] if args else kwargs.get("prompt"),
-            "model": kwargs.get("model", library),
-        }
-
     def response(value):
         data = _json(value)
         if library == "ollama" and isinstance(data, dict):
@@ -265,6 +260,20 @@ def instrument_library(client, library: str, **options) -> Instrumentation:
     try:
         for method in methods[library]:
             if callable(getattr(owner, method, None)):
+                import inspect
+
+                signature = inspect.signature(getattr(owner, method))
+
+                def request(args, kwargs, signature=signature):
+                    # Bound signatures preserve positional model/prompt arguments and keyword input.
+                    values = dict(signature.bind_partial(*args, **kwargs).arguments)
+                    values.update(values.pop("kwargs", {}))
+                    values.update(kwargs)
+                    values.setdefault("model", getattr(owner, "model", library))
+                    if "input" not in values and "prompt" in values:
+                        values["input"] = values["prompt"]
+                    return values
+
                 handle.patch(owner, method, library, request=request, response=response)
         if not handle._patches:
             raise ValueError(f"no supported {library} methods")

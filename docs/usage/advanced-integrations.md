@@ -153,3 +153,33 @@ adapter currently records the listed generation methods, not embedding calls or 
 For Node applications using a LiteLLM proxy's OpenAI-compatible endpoint, configure the OpenAI client
 with that proxy URL and use `instrumentOpenAI(client)`. Proxy authentication and routing remain in your
 application configuration. This does not require a LiteLLM dependency inside the Refract engine.
+
+## Node LangChain and LangGraph callbacks
+
+```typescript
+import { refract, langchainHandler, instrumentLangChainModel } from "@llm-refract/sdk";
+
+const restore = instrumentLangChainModel(chatModel); // your configured LangChain chat/LLM model
+try {
+  await refract.run("framework-request", async () => {
+    const callbacks = [langchainHandler()];
+    await chain.invoke({ question: "Hello" }, { callbacks });
+  });
+} finally {
+  restore();
+}
+```
+
+`langchainHandler()` records chain, model, tool and retriever callbacks, their causal parents, failures,
+reported usage, and time to first token. It can be passed to LangGraph JS runnables using the same
+callback contract. `instrumentLangChainModel(model)` observes that model's `invoke` and `stream`
+methods and coordinates with these callbacks and nested provider wrappers to keep one generation
+measurement. Instrument the model instances used by your chain at startup. The callback handler alone
+is also useful when provider instrumentation is disabled. Existing application callbacks are retained;
+pass them alongside Refract's callback in the configuration.
+
+The base Node SDK does not import LangChain at runtime; applications install their own framework
+version. Tests use the installed `@langchain/core` package with local runnables and fake chat models,
+including streamed/nonstreamed model calls and a model delegating to an instrumented provider client.
+Framework callbacks in another process require explicit distributed trace propagation; no local
+wrapper can infer that relationship without a shared identifier.

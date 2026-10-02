@@ -9,6 +9,7 @@ import json
 import time
 from collections import deque
 from collections.abc import Callable
+from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
@@ -17,6 +18,27 @@ from . import Run, _current, _snapshot
 _framework_generation: ContextVar[tuple[Any, dict] | None] = ContextVar(
     "refract_framework_generation", default=None
 )
+_provider_generation: ContextVar[_Capture | None] = ContextVar(
+    "refract_provider_generation", default=None
+)
+
+
+def _nested_generation() -> bool:
+    capture = _provider_generation.get()
+    return bool(
+        capture is not None
+        and not capture.finished
+        and (_current.get() is None or _current.get() is capture.run)
+    )
+
+
+@contextmanager
+def _capture_context(capture):
+    token = _provider_generation.set(capture or _provider_generation.get())
+    try:
+        yield
+    finally:
+        _provider_generation.reset(token)
 
 
 def _json(value: Any) -> Any:
@@ -102,6 +124,8 @@ class Instrumentation:
             return
 
         def begin(args, kwargs):
+            if _nested_generation():
+                return None
             try:
                 selected = request(args, kwargs) if request else dict(kwargs)
                 if model is not None:
@@ -119,7 +143,9 @@ class Instrumentation:
                 if streaming or kwargs.get("stream"):
                     wrapped = result[stream_key] if stream_key else result
                     proxy = (
-                        _AsyncStream(wrapped, capture)
+                        _DualStream(wrapped, capture)
+                        if hasattr(wrapped, "__aiter__") and hasattr(wrapped, "__iter__")
+                        else _AsyncStream(wrapped, capture)
                         if hasattr(wrapped, "__aiter__")
                         else _Stream(wrapped, capture)
                     )
@@ -140,7 +166,8 @@ class Instrumentation:
             async def asynchronous(*args, **kwargs):
                 capture = begin(args, kwargs)
                 try:
-                    result = await original(*args, **kwargs)
+                    with _capture_context(capture):
+                        result = await original(*args, **kwargs)
                 except BaseException as error:
                     if capture:
                         capture.finish(error=error)
@@ -154,7 +181,8 @@ class Instrumentation:
             def synchronous(*args, **kwargs):
                 capture = begin(args, kwargs)
                 try:
-                    result = original(*args, **kwargs)
+                    with _capture_context(capture):
+                        result = original(*args, **kwargs)
                 except BaseException as error:
                     if capture:
                         capture.finish(error=error)
@@ -163,7 +191,8 @@ class Instrumentation:
 
                     async def resolve():
                         try:
-                            value = await result
+                            with _capture_context(capture):
+                                value = await result
                         except BaseException as error:
                             if capture:
                                 capture.finish(error=error)
@@ -455,6 +484,77 @@ class _Capture:
                     )
 
 
+class _DualStream:
+    """Preserve both consumption protocols of SDK streams such as LiteLLM's wrapper."""
+
+    def __init__(self, wrapped, capture):
+        self._wrapped, self._capture = wrapped, capture
+        self._sync = None
+        self._async = None
+
+    def __getattr__(self, name):
+        return getattr(self._wrapped, name)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._sync is None:
+            self._sync = _Stream(self._wrapped, self._capture)
+        return next(self._sync)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._async is None:
+            self._async = _AsyncStream(self._wrapped, self._capture)
+        return await self._async.__anext__()
+
+    def close(self):
+        try:
+            close = getattr(self._wrapped, "close", None)
+            result = close() if close else None
+            if inspect.isawaitable(result):
+
+                async def finish():
+                    try:
+                        return await result
+                    finally:
+                        self._capture.finish(partial=True)
+
+                return finish()
+            self._capture.finish(partial=True)
+            return result
+        except BaseException as error:
+            self._capture.finish(error=error)
+            raise
+
+    async def aclose(self):
+        try:
+            close = getattr(self._wrapped, "aclose", None) or getattr(self._wrapped, "close", None)
+            if close:
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
+        finally:
+            self._capture.finish(partial=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self._capture.finish(error=exc, partial=not self._capture.finished)
+        self.close()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self._capture.finish(error=exc, partial=not self._capture.finished)
+        await self.aclose()
+
+
 class _Stream:
     def __init__(self, wrapped, capture: _Capture):
         self._wrapped, self._capture = wrapped, capture
@@ -468,7 +568,8 @@ class _Stream:
 
     def __next__(self):
         try:
-            value = next(self._iterator)
+            with _capture_context(self._capture):
+                value = next(self._iterator)
         except StopIteration:
             self._capture.finish()
             raise
@@ -507,7 +608,8 @@ class _AsyncStream:
 
     async def __anext__(self):
         try:
-            value = await self._iterator.__anext__()
+            with _capture_context(self._capture):
+                value = await self._iterator.__anext__()
         except StopAsyncIteration:
             self._capture.finish()
             raise
@@ -635,7 +737,7 @@ def instrument_bedrock(client, **kwargs) -> Instrumentation:
     """Observe an existing boto3 bedrock-runtime client's Converse APIs.
 
     Credentials, region, endpoints and retry policy remain owned by the application.
-    InvokeModel and async AWS clients require a custom adapter.
+    Awaitable AWS clients are supported. Use instrument_bedrock_native for InvokeModel.
     """
     handle = Instrumentation(**kwargs)
 

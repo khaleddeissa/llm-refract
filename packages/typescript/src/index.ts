@@ -120,6 +120,25 @@ export function startSpan(input: EventInput) {
   const captured = state.execution.events.find((item) => item.id === id)!;
   return {
     id,
+    isCurrentGeneration(): boolean {
+      return (
+        context.getStore()?.execution === state.execution &&
+        state.active &&
+        captured.status === "running"
+      );
+    },
+    setParent(parentId: string): void {
+      if (captured.status !== "running") return;
+      const parentIndex = state.execution.events.findIndex(
+        (item) => item.id === parentId,
+      );
+      if (
+        parentIndex < 0 ||
+        parentIndex >= state.execution.events.indexOf(captured)
+      )
+        throw new Error("parent must precede child");
+      captured.parent_id = parentId;
+    },
     within<T>(fn: () => T): T {
       return context.run({ ...state, parentId: id }, fn);
     },
@@ -305,6 +324,7 @@ export {
   instrumentRealtime,
   instrumentLibrary,
   instrumentCustom,
+  instrumentLangChainModel,
   type InstrumentOptions,
   type CustomInstrumentOptions,
   type NormalizedGeneration,
@@ -313,6 +333,7 @@ export {
 export { BatchExporter, type BatchExporterOptions } from "./exporter.js";
 export { toOtlp, fromOtlp, exportOtlp } from "./otel.js";
 export { toLangfuse, exportLangfuse } from "./langfuse.js";
+export { langchainHandler } from "./langchain.js";
 export {
   RefractClient,
   type EmbeddingModel,

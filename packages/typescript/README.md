@@ -84,3 +84,8 @@ for more.
 ## License
 
 Apache-2.0 — see [LICENSE](https://github.com/khaleddeissa/llm-refract/blob/main/LICENSE).
+
+For LangChain/LangGraph, pass `langchainHandler()` in runnable callbacks and install
+`instrumentLangChainModel(chatModel)` on your configured model for callback/provider deduplication.
+See [framework examples](../../docs/usage/advanced-integrations.md). Bedrock adapters support promise,
+stream and callback-style SDK calls.

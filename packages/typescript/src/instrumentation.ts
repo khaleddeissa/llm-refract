@@ -1,6 +1,17 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { startSpan, type Json } from "./index.js";
 
+const providerGeneration = new AsyncLocalStorage<
+  NonNullable<ReturnType<typeof startSpan>>
+>();
+/** Internal coordination with framework callbacks; does not suppress independent calls. */
+export function generationObserved(parentId?: string): boolean {
+  const capture = providerGeneration.getStore();
+  if (!capture?.isCurrentGeneration()) return false;
+  if (parentId) capture.setParent(parentId);
+  return true;
+}
+
 export interface InstrumentOptions {
   /** Explicit application-maintained USD rates per million tokens; no assumed pricing. */
   pricing?: Record<
@@ -45,6 +56,7 @@ type Adapter = Pick<
   "request" | "normalize" | "streamKey"
 > & {
   matches?: (args: unknown[]) => boolean;
+  callback?: boolean;
 };
 function object(value: unknown): Data {
   return value !== null && typeof value === "object" ? (value as Data) : {};
@@ -219,6 +231,8 @@ function instrument(
   const restores: (() => void)[] = [];
   for (const { path, target, key, original, descriptor } of targets) {
     const replacement = function (this: unknown, ...args: unknown[]) {
+      if (providerGeneration.getStore()?.isCurrentGeneration())
+        return Reflect.apply(original, this, args) as unknown;
       const params = object(args[0]);
       let request: { model?: string; input?: Json } = {};
       let matches = true;
@@ -247,6 +261,10 @@ function instrument(
         /* fail open */
       }
       const started = performance.now();
+      const withinGeneration = <T>(fn: () => T): T =>
+        capture
+          ? providerGeneration.run(capture, () => capture.within(fn))
+          : fn();
       const finish = (
         output: unknown,
         attributes: Record<string, Json>,
@@ -314,7 +332,26 @@ function instrument(
                 let incomplete = false;
                 const tools: Json[] = [];
                 try {
-                  for await (const chunk of stream) {
+                  const iterator = withinGeneration(() =>
+                    stream[Symbol.asyncIterator](),
+                  );
+                  const scopedStream = {
+                    [Symbol.asyncIterator]() {
+                      return {
+                        next: () => withinGeneration(() => iterator.next()),
+                        return: async () =>
+                          withinGeneration(
+                            () =>
+                              iterator.return?.() ??
+                              Promise.resolve({
+                                done: true as const,
+                                value: undefined,
+                              }),
+                          ),
+                      };
+                    },
+                  };
+                  for await (const chunk of scopedStream) {
                     try {
                       const normalized =
                         adapter.normalize?.(chunk, { streaming: true }) ??
@@ -391,8 +428,35 @@ function instrument(
         return result;
       };
       try {
+        const callbackIndex = adapter.callback
+          ? args.findIndex((arg) => typeof arg === "function")
+          : -1;
+        if (callbackIndex >= 0) {
+          const callerContext = AsyncLocalStorage.snapshot();
+          const callback = args[callbackIndex] as (
+            ...values: unknown[]
+          ) => unknown;
+          args[callbackIndex] = function (
+            this: unknown,
+            error: unknown,
+            value: unknown,
+            ...rest: unknown[]
+          ) {
+            if (error)
+              finish(
+                null,
+                { error_type: error instanceof Error ? error.name : "Error" },
+                true,
+              );
+            else value = complete(value);
+            return callerContext(() =>
+              Reflect.apply(callback, this, [error, value, ...rest]),
+            );
+          };
+        }
         const invoke = () => Reflect.apply(original, this, args) as unknown;
-        const result = capture ? capture.within(invoke) : invoke();
+        const result = withinGeneration(invoke);
+        if (callbackIndex >= 0) return result;
         if (!capture) return result;
         if (!result || typeof object(result).then !== "function")
           return complete(result);
@@ -570,12 +634,13 @@ export function instrumentBedrock(
   options: InstrumentOptions = {},
 ): () => void {
   return instrument(client, "bedrock", [["send"]], options, {
+    callback: true,
     matches: (args) =>
       ["ConverseCommand", "ConverseStreamCommand"].includes(
         String(
           object(args[0]).constructor && (args[0] as object).constructor.name,
         ),
-      ) && !args.some((arg) => typeof arg === "function"),
+      ),
     request: (args) => {
       const input = object(object(args[0]).input);
       return { model: String(input.modelId ?? "unknown"), input: json(input) };
@@ -617,6 +682,37 @@ export function instrumentCustom(
   );
 }
 
+/** Observe a LangChain chat/LLM model's invoke and stream methods, including nested SDK calls. */
+export function instrumentLangChainModel(
+  client: object,
+  options: InstrumentOptions = {},
+): () => void {
+  if (typeof object(client)._llmType !== "function")
+    throw new Error(
+      "instrumentLangChainModel requires a LangChain language model",
+    );
+  return instrument(client, "langchain", [["invoke"], ["stream"]], options, {
+    request: (args) => ({
+      model: String(
+        object(client).model ?? object(client).modelName ?? "langchain-model",
+      ),
+      input: json(args[0]),
+    }),
+    normalize: (value) => {
+      const message = object(value);
+      return {
+        output: json({
+          content: message.content ?? value,
+          tool_calls: message.tool_calls ?? [],
+          usage_metadata: message.usage_metadata ?? {},
+        }),
+        text: typeof message.content === "string" ? message.content : "",
+        usage: object(message.usage_metadata),
+      };
+    },
+  });
+}
+
 /** Native AWS SDK v3 InvokeModel/InvokeModelWithResponseStream without eager stream reads. */
 export function instrumentBedrockNative(
   client: object,
@@ -629,10 +725,11 @@ export function instrumentBedrockNative(
     return object(body);
   };
   return instrument(client, "bedrock", [["send"]], options, {
+    callback: true,
     matches: (args) =>
       ["InvokeModelCommand", "InvokeModelWithResponseStreamCommand"].includes(
         args[0]?.constructor.name ?? "",
-      ) && !args.some((arg) => typeof arg === "function"),
+      ),
     streamKey: "body",
     request: (args) => {
       const input = object(object(args[0]).input);

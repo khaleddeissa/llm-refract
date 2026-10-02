@@ -222,7 +222,7 @@ it("captures Bedrock ConverseStream nested iteration, usage and exception events
   });
 });
 
-it("does not retry or record unsupported Bedrock commands and callback calls", async () => {
+it("does not retry Bedrock calls and skips unsupported commands", async () => {
   const failure = new Error("once only");
   let count = 0;
   const client = {
@@ -241,7 +241,56 @@ it("does not retry or record unsupported Bedrock commands and callback calls", a
     ).toThrow(failure);
   });
   expect(count).toBe(2);
-  expect(run.events).toHaveLength(0);
+  expect(run.events).toHaveLength(1);
+  expect(run.events[0].status).toBe("failed");
+});
+
+it("observes callback Bedrock responses and preserves callback context and errors", async () => {
+  const failure = new Error("fixture callback failure");
+  const client = {
+    send(
+      command: ConverseCommand,
+      callback: (error: Error | null, result?: unknown) => void,
+    ) {
+      queueMicrotask(() =>
+        callback(
+          command.input.modelId === "bad" ? failure : null,
+          command.input.modelId === "bad"
+            ? undefined
+            : {
+                usage: { inputTokens: 3, outputTokens: 2 },
+                output: { message: { content: [{ text: "answer" }] } },
+              },
+        ),
+      );
+    },
+  };
+  const restore = instrumentBedrock(client);
+  try {
+    const run = await record(async () => {
+      await new Promise<void>((resolve, reject) =>
+        client.send(
+          new ConverseCommand({ modelId: "good" }),
+          (error, result) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            expect(result).toMatchObject({ usage: { inputTokens: 3 } });
+            client.send(new ConverseCommand({ modelId: "bad" }), (error) => {
+              expect(error).toBe(failure);
+              resolve();
+            });
+          },
+        ),
+      );
+    });
+    expect(run.events).toHaveLength(2);
+    expect(run.events[0].attributes?.total_tokens).toBe(5);
+    expect(run.events[1].status).toBe("failed");
+  } finally {
+    restore();
+  }
 });
 
 it("distinguishes Azure and captures compatible streaming usage", async () => {

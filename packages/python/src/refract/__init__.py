@@ -358,6 +358,17 @@ def instrument_library(client, library: str, **kwargs):
     return install(client, library, **kwargs)
 
 
+def instrument_litellm(client=None, **kwargs):
+    """Observe LiteLLM module or Router generation methods without duplicate provider events."""
+    if client is None:
+        try:
+            import litellm
+        except ImportError as error:
+            raise ImportError("Install llm-refract[litellm] to instrument LiteLLM") from error
+        client = litellm
+    return instrument_library(client, "litellm", **kwargs)
+
+
 def instrument_realtime(connection, **kwargs):
     """Observe an existing Realtime connection without retaining binary audio."""
     from .integrations.realtime import instrument_realtime as install

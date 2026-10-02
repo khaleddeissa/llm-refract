@@ -73,3 +73,6 @@ Apache-2.0 — see [LICENSE](https://github.com/khaleddeissa/llm-refract/blob/ma
 
 See [provider coverage](../../docs/usage/providers.md) for Azure, Gemini/Vertex, Bedrock and custom
 model adapters, and [production operation](../../docs/production.md) for reliable remote capture.
+
+Use `refract.instrument_litellm()` with `llm-refract[litellm]` to observe LiteLLM module or Router calls.
+[Provider documentation](../../docs/usage/providers.md) covers configuration, mock examples and nested-call deduplication.

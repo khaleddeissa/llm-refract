@@ -35,5 +35,8 @@
     "execution",
     "agent",
     "tracing"
-  ]
+  ],
+  "devDependencies": {
+    "@langchain/core": "^1.2.14"
+  }
 }
