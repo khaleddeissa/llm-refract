@@ -28,6 +28,29 @@ class ExecutorRegistry:
             raise TypeError("executor must be callable")
         self.executors[name] = executor
 
+    def register_provider(
+        self, client: Any, *, provider: str, api: str = "auto", defaults: dict | None = None
+    ) -> None:
+        """Use a built-in generation executor with an application-configured SDK client."""
+        from .provider_executor import ProviderExecutor
+
+        self.register(
+            "generation", ProviderExecutor(client, provider=provider, api=api, defaults=defaults)
+        )
+
+    def reuse_recorded(self, *event_types: str) -> None:
+        """Explicitly reuse named non-generation event types instead of repeating their effects."""
+        for kind in event_types:
+            if kind == "generation":
+                raise ValueError("use a generation executor for model reruns")
+            self.register(
+                kind,
+                lambda event, context: {
+                    "output": event["output"],
+                    "attributes": {"reused_recorded_output": True},
+                },
+            )
+
     def resolve(self, event: dict) -> Callable:
         callback = (
             self.executors.get(event["name"])
@@ -104,7 +127,15 @@ async def rerun_async(
                 path = binding.get("path", "")
                 if not isinstance(path, str) or (path and not path.startswith("/")):
                     raise ValueError("output binding paths must be JSON pointers")
-            callbacks.append(registry.resolve(event))
+            callback = registry.resolve(event)
+            validator = getattr(callback, "validate", None)
+            if validator is not None:
+                planned = copy.deepcopy(event)
+                replacement = model or (replace_models or {}).get(event["attributes"].get("model"))
+                if replacement and event["type"] == "generation":
+                    planned["attributes"]["model"] = replacement
+                validator(planned)
+            callbacks.append(callback)
         known.add(event["id"])
     branch = copy.deepcopy(recording)
     branch["id"] = f"run_{uuid.uuid4()}"
@@ -137,6 +168,12 @@ async def rerun_async(
             "total_tokens",
             "cost_usd",
             "cost_is_estimate",
+            "cost_estimated",
+            "cache_hit",
+            "stream_completed",
+            "stream_incomplete",
+            "capture_incomplete",
+            "output_truncated",
             "ttft_ms",
         ):
             event["attributes"].pop(metric, None)

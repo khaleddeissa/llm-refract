@@ -1,6 +1,7 @@
 mod controls;
 mod delivery;
 mod embeddings;
+mod generation;
 mod identity_api;
 pub mod login;
 pub mod oidc;
@@ -54,6 +55,7 @@ struct AppState {
     security: Security,
     redaction: refract_collector::RedactionPolicy,
     embeddings: embeddings::Registry,
+    generation: generation::Registry,
 }
 /// Development router with a local admin identity. Use router_with_security for shared services.
 pub fn router(store: Store) -> Router {
@@ -65,6 +67,7 @@ pub fn router_with_security(store: Store, security: Security) -> Router {
         security,
         refract_collector::RedactionPolicy::default(),
         embeddings::Registry::default(),
+        generation::Registry::default(),
     )
 }
 fn router_with_policy(
@@ -72,12 +75,14 @@ fn router_with_policy(
     security: Security,
     redaction: refract_collector::RedactionPolicy,
     embeddings: embeddings::Registry,
+    generation: generation::Registry,
 ) -> Router {
     let state = AppState {
         store,
         security,
         redaction,
         embeddings,
+        generation,
     };
     Router::new()
         .route("/v1/health", get(|| async { Json(json!({"status":"ok"})) }))
@@ -101,6 +106,8 @@ fn router_with_policy(
         .route("/v1/search", get(search))
         .route("/v1/search/vector", post(controls::vector_search))
         .route("/v1/search/text", post(embeddings::search))
+        .route("/v1/generation-models", get(generation::models))
+        .route("/v1/runs/{id}/rerun", post(generation::rerun))
         .route("/v1/embedding-models", get(embeddings::models))
         .route("/v1/project/embeddings", get(embeddings::settings))
         .route(
@@ -369,7 +376,7 @@ async fn replay(
 ) -> ApiResult<Json<Value>> {
     if req.mode != "exact" {
         return Err(invalid(
-            "only exact recorded playback is supported by this endpoint; use local rerun handlers for executable replay",
+            "only exact recorded playback is supported by this endpoint; use /v1/runs/{id}/rerun or a local executor for executable replay",
         ));
     }
     Ok(Json(
@@ -513,6 +520,7 @@ pub async fn serve() -> anyhow::Result<()> {
     };
     let mode = std::env::var("REFRACT_MODE").unwrap_or("local".into());
     let embeddings = embeddings::Registry::from_env(mode == "production")?;
+    let generation = generation::Registry::from_env(mode == "production")?;
     security::validate_mode(
         &mode,
         &security,
@@ -648,6 +656,7 @@ pub async fn serve() -> anyhow::Result<()> {
         security,
         refract_collector::RedactionPolicy::from_env()?,
         embeddings,
+        generation,
     )
     .fallback_service(ServeDir::new(ui));
     let listener = tokio::net::TcpListener::bind(&address).await?;

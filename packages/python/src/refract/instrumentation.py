@@ -238,6 +238,23 @@ class _Capture:
                 "system",
                 "tools",
                 "tool_choice",
+                "temperature",
+                "top_p",
+                "top_k",
+                "max_tokens",
+                "max_completion_tokens",
+                "max_output_tokens",
+                "stop",
+                "stop_sequences",
+                "text",
+                "seed",
+                "response_format",
+                "reasoning",
+                "reasoning_effort",
+                "thinking",
+                "frequency_penalty",
+                "presence_penalty",
+                "parallel_tool_calls",
             }
         }
         framework = _framework_generation.get()
@@ -690,7 +707,20 @@ def _google_request(args, kwargs):
     result = {"model": kwargs.get("model", "unknown"), "input": kwargs.get("contents")}
     if isinstance(config, dict):
         result.update(
-            {key: config[key] for key in ("tools", "system_instruction") if key in config}
+            {
+                key: config[key]
+                for key in (
+                    "tools",
+                    "system_instruction",
+                    "temperature",
+                    "top_p",
+                    "top_k",
+                    "max_output_tokens",
+                    "seed",
+                    "stop_sequences",
+                )
+                if key in config
+            }
         )
         if "system_instruction" in result:
             result["system"] = result.pop("system_instruction")
@@ -747,6 +777,17 @@ def instrument_bedrock(client, **kwargs) -> Instrumentation:
             "messages": values.get("messages"),
             "system": values.get("system"),
             "tools": (values.get("toolConfig") or {}).get("tools"),
+            "tool_choice": (values.get("toolConfig") or {}).get("toolChoice"),
+            **{
+                target: value
+                for key, target in [
+                    ("temperature", "temperature"),
+                    ("topP", "top_p"),
+                    ("maxTokens", "max_tokens"),
+                    ("stopSequences", "stop_sequences"),
+                ]
+                if (value := (values.get("inferenceConfig") or {}).get(key)) is not None
+            },
         }
 
     try:

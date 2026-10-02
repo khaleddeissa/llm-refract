@@ -1,6 +1,8 @@
 mod execute;
 use anyhow::{Result, ensure};
-pub use execute::{ExecutionResult, Executor, RerunOptions, rerun};
+pub use execute::{
+    AsyncExecutor, ExecutionResult, Executor, RerunOptions, preflight, rerun, rerun_async,
+};
 use refract_core::{ReplayPolicy, Run, id};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
