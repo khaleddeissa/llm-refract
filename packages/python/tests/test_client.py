@@ -30,3 +30,18 @@ def test_service_client_rejects_credential_urls_and_nonfinite_vectors():
             RefractClient(url)
     with pytest.raises(ValueError):
         RefractClient().search_vector("test", [float("nan")])
+
+
+def test_replay_and_grading_clients_preserve_explicit_consent_and_bounded_timeout():
+    client = RefractClient()
+    opener = Mock()
+    client._opener = opener
+    opener.open.return_value = io.BytesIO(b'{"id":"branch"}')
+    assert client.rerun("a/b", profile="local", from_event="first")["id"] == "branch"
+    request = opener.open.call_args.args[0]
+    assert request.full_url.endswith("/v1/runs/a%2Fb/rerun")
+    assert json.loads(request.data)["allow_live"] is False
+    assert opener.open.call_args.kwargs["timeout"] == 130
+    opener.open.return_value = io.BytesIO(b"{}")
+    client.compare("a", "b", grader="domain", allow_live=True)
+    assert json.loads(opener.open.call_args.args[0].data)["grader"] == "domain"

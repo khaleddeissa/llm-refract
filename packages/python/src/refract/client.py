@@ -28,7 +28,9 @@ class RefractClient:
         self.api_key = api_key
         self._opener = urllib.request.build_opener(_NoRedirect())
 
-    def request(self, path: str, body: Any = None, *, method: str | None = None) -> Any:
+    def request(
+        self, path: str, body: Any = None, *, method: str | None = None, timeout: float = 35
+    ) -> Any:
         if not path.startswith("/v1/"):
             raise ValueError("request path must start with /v1/")
         headers = {"Content-Type": "application/json"}
@@ -40,7 +42,7 @@ class RefractClient:
             headers=headers,
             method=method,
         )
-        with self._opener.open(request, timeout=35) as response:
+        with self._opener.open(request, timeout=timeout) as response:
             payload = response.read(17 * 1024 * 1024 + 1)
         if len(payload) > 17 * 1024 * 1024:
             raise ValueError("service response exceeds 17 MiB")
@@ -73,4 +75,55 @@ class RefractClient:
         return self.request(
             "/v1/search/vector",
             {"embedding": {"model": model, "values": values}, "limit": limit, "mode": mode},
+        )
+
+    def generation_models(self) -> list[dict]:
+        return self.request("/v1/generation-models")["models"]
+
+    def rerun(
+        self,
+        run_id: str,
+        *,
+        profile: str,
+        from_event: str,
+        allow_live: bool = False,
+        reuse_recorded: list[str] | None = None,
+        approved_events: list[str] | None = None,
+    ) -> dict:
+        """Create a provider-executed branch. Named reused steps never execute application tools."""
+        if not run_id or run_id in {".", ".."}:
+            raise ValueError("invalid run id")
+        return self.request(
+            "/v1/runs/" + urllib.parse.quote(run_id, safe="") + "/rerun",
+            {
+                "profile": profile,
+                "from_event": from_event,
+                "allow_live": allow_live,
+                "reuse_recorded": reuse_recorded or [],
+                "approved_events": approved_events or [],
+            },
+            timeout=130,
+        )
+
+    def compare(
+        self,
+        left: str,
+        right: str,
+        *,
+        semantic: bool = True,
+        grader: str | None = None,
+        allow_live: bool = False,
+        options: dict | None = None,
+    ) -> dict:
+        return self.request(
+            "/v1/diff",
+            {
+                "left": left,
+                "right": right,
+                "semantic": semantic,
+                "grader": grader,
+                "allow_live": allow_live,
+                "options": options or {},
+            },
+            timeout=130,
         )

@@ -658,3 +658,21 @@ input {
   color: #a4b8b1;
   margin-top: 5px;
 }
+
+.rerun-panel {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #263c35);
+  border-radius: 10px;
+}
+.rerun-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.rerun-panel label {
+  display: block;
+  margin: 0.7rem 0;
+}
+.rerun-panel input {
+  margin-right: 0.5rem;
+}

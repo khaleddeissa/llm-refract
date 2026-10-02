@@ -97,6 +97,7 @@ async fn local_provider_indexes_searches_and_enforces_scope_and_roles() {
         keys(),
         refract_collector::RedactionPolicy::default(),
         registry.clone(),
+        generation::Registry::default(),
     );
     let admin = Some("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
     let writer = Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");

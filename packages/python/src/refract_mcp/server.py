@@ -1,35 +1,28 @@
-"""Read-oriented MCP facade over the Rust REST service; never executes tools."""
+"""Read-oriented facade with separately enabled provider calls; never executes application tools."""
 
 import json
 import os
 import urllib.parse
-import urllib.request
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from refract.client import RefractClient
+
 mcp = FastMCP(
-    "refract", instructions="Inspect captured executions. No live execution is supported."
+    "refract",
+    instructions="Inspect executions. Provider calls require the optional live tools and explicit allow_live consent.",
 )
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
 
 def api(path: str, body: dict | None = None) -> Any:
-    endpoint = os.environ.get("REFRACT_SERVER_URL", "http://127.0.0.1:8000").rstrip("/")
-    headers = {"Content-Type": "application/json"}
-    if key := os.environ.get("REFRACT_API_KEY"):
-        headers["Authorization"] = "Bearer " + key
-    request = urllib.request.Request(
-        endpoint + path,
-        None if body is None else json.dumps(body).encode(),
-        headers,
+    client = RefractClient(
+        os.environ.get("REFRACT_SERVER_URL", "http://127.0.0.1:8000"),
+        api_key=os.environ.get("REFRACT_API_KEY"),
     )
-    with urllib.request.urlopen(request, timeout=35) as response:
-        data = response.read(17 * 1024 * 1024 + 1)
-    if len(data) > 17 * 1024 * 1024:
-        raise ValueError("response exceeds size limit")
-    return json.loads(data)
+    return client.request(path, body, timeout=130 if body and body.get("allow_live") else 35)
 
 
 def run_path(run_id: str) -> str:
@@ -139,7 +132,8 @@ def capabilities() -> str:
             "pagination": True,
             "metrics": True,
             "semantic_diff": True,
-            "live_replay": False,
+            "live_replay": os.environ.get("REFRACT_MCP_ALLOW_LIVE") == "1"
+            and os.environ.get("REFRACT_MCP_ALLOW_WRITES") == "1",
             "spec_version": "refract.execution.v1",
         }
     )
@@ -225,3 +219,62 @@ def search_text(query: str, profile: str | None = None, limit: int = 20) -> dict
     if not query.strip() or len(query.encode()) > 8000 or not 1 <= limit <= 100:
         raise ValueError("query must be 1..8000 bytes and limit 1..100")
     return api("/v1/search/text", {"query": query, "profile": profile, "limit": limit})
+
+
+@mcp.tool(annotations=READ)
+def generation_models() -> list[dict]:
+    """List operator-approved model profiles and domain grading availability for this project."""
+    return api("/v1/generation-models")["models"]
+
+
+if os.environ.get("REFRACT_MCP_ALLOW_LIVE") == "1":
+    LIVE_READ = ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, openWorldHint=True, idempotentHint=False
+    )
+
+    @mcp.tool(annotations=LIVE_READ)
+    def grade_runs(
+        left: str, right: str, grader: str, allow_live: bool = False, threshold: float = 0.75
+    ) -> dict:
+        """Call a configured model grader; requires explicit consent and can incur provider usage."""
+        if not allow_live:
+            raise ValueError("model grading requires allow_live=True")
+        return api(
+            "/v1/diff",
+            {
+                "left": left,
+                "right": right,
+                "semantic": True,
+                "grader": grader,
+                "allow_live": True,
+                "options": {"similarity_threshold": threshold},
+            },
+        )
+
+    if os.environ.get("REFRACT_MCP_ALLOW_WRITES") == "1":
+        LIVE_WRITE = ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, openWorldHint=True, idempotentHint=False
+        )
+
+        @mcp.tool(annotations=LIVE_WRITE)
+        def rerun_models(
+            run_id: str,
+            from_event: str,
+            profile: str,
+            allow_live: bool = False,
+            reuse_recorded: list[str] | None = None,
+            approved_events: list[str] | None = None,
+        ) -> dict:
+            """Execute model steps into a new branch; explicitly reuse named other steps without running tools. Provider usage may be charged."""
+            if not allow_live:
+                raise ValueError("model rerun requires allow_live=True")
+            return api(
+                run_path(run_id) + "/rerun",
+                {
+                    "profile": profile,
+                    "from_event": from_event,
+                    "allow_live": True,
+                    "reuse_recorded": reuse_recorded or [],
+                    "approved_events": approved_events or [],
+                },
+            )

@@ -38,28 +38,45 @@ def test_read_tools():
 
 
 @pytest.mark.parametrize("writes", [False, True])
-def test_real_stdio_handshake_and_discovery(writes):
+@pytest.mark.parametrize("live", [False, True])
+def test_real_stdio_handshake_and_discovery(writes, live):
     async def exercise():
         params = StdioServerParameters(
             command=sys.executable,
             args=["-m", "refract_mcp"],
-            env={**os.environ, "REFRACT_MCP_ALLOW_WRITES": "1" if writes else "0"},
+            env={
+                **os.environ,
+                "REFRACT_MCP_ALLOW_WRITES": "1" if writes else "0",
+                "REFRACT_MCP_ALLOW_LIVE": "1" if live else "0",
+            },
         )
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
-            assert len(tools.tools) == (18 if writes else 16)
+            assert len(tools.tools) == (17 + 2 * writes + live + (writes and live))
             names = {t.name for t in tools.tools}
             assert ("fork_run" in names) == writes
             assert ("import_run" in names) == writes
+            assert ("rerun_models" in names) == (writes and live)
+            assert ("grade_runs" in names) == live
             assert "replay_recorded" in names
             assert all(
                 t.annotations.readOnlyHint
                 for t in tools.tools
-                if t.name not in {"fork_run", "import_run"}
+                if t.name not in {"fork_run", "import_run", "rerun_models"}
             )
             resource = await session.read_resource("refract://capabilities")
-            assert json.loads(resource.contents[0].text)["live_replay"] is False
+            assert json.loads(resource.contents[0].text)["live_replay"] == (writes and live)
+            if live:
+                denied = await session.call_tool(
+                    "grade_runs", {"left": "a", "right": "b", "grader": "test"}
+                )
+                assert denied.isError
+                if writes:
+                    denied = await session.call_tool(
+                        "rerun_models", {"run_id": "a", "from_event": "b", "profile": "test"}
+                    )
+                    assert denied.isError
 
     asyncio.run(asyncio.wait_for(exercise(), timeout=20))
 

@@ -44,7 +44,7 @@ impl SemanticOptions {
         Ok(())
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Grade {
     pub score: f64,
     pub equivalent: bool,
@@ -179,6 +179,10 @@ fn shape(event: &refract_core::Event, run: &Run) -> Value {
             "ttft_ms",
             "model",
             "provider",
+            "generation_profile",
+            "reused_recorded_output",
+            "cost_is_estimate",
+            "cost_estimated",
         ] {
             map.remove(name);
         }

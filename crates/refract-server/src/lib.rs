@@ -417,8 +417,13 @@ struct DiffRequest {
     semantic: bool,
     #[serde(default)]
     options: SemanticOptions,
+    #[serde(default)]
+    grader: Option<String>,
+    #[serde(default)]
+    allow_live: bool,
 }
 async fn diff(
+    State(state): State<AppState>,
     Extension(s): Extension<Store>,
     Json(req): Json<DiffRequest>,
 ) -> ApiResult<Json<Value>> {
@@ -426,8 +431,25 @@ async fn diff(
     let left = load(&s, &req.left).await?;
     let right = load(&s, &req.right).await?;
     let differences = refract_diff::compare(&left, &right);
+    let semantic_report = if req.semantic {
+        Some(
+            state
+                .generation
+                .compare(
+                    s.scope(),
+                    &left,
+                    &right,
+                    &req.options,
+                    req.grader.as_deref(),
+                    req.allow_live,
+                )
+                .await?,
+        )
+    } else {
+        None
+    };
     Ok(Json(
-        json!({"first_divergence":differences.first().map(|d|d.index),"differences":differences,"metric_changes":refract_core::compare_metrics(&left,&right),"semantic_report":req.semantic.then(||compare_semantic(&left,&right,&req.options))}),
+        json!({"first_divergence":differences.first().map(|d|d.index),"differences":differences,"metric_changes":refract_core::compare_metrics(&left,&right),"semantic_report":semantic_report}),
     ))
 }
 #[derive(Deserialize)]
@@ -443,8 +465,13 @@ struct EvalRequest {
     pairs: Vec<EvalPair>,
     #[serde(default)]
     options: SemanticOptions,
+    #[serde(default)]
+    grader: Option<String>,
+    #[serde(default)]
+    allow_live: bool,
 }
 async fn evaluate(
+    State(state): State<AppState>,
     Extension(s): Extension<Store>,
     Json(req): Json<EvalRequest>,
 ) -> ApiResult<Json<Value>> {
@@ -455,11 +482,17 @@ async fn evaluate(
     let mut results = vec![];
     let mut passed = 0;
     for pair in req.pairs {
-        let report = compare_semantic(
-            &load(&s, &pair.left).await?,
-            &load(&s, &pair.right).await?,
-            &req.options,
-        );
+        let report = state
+            .generation
+            .compare(
+                s.scope(),
+                &load(&s, &pair.left).await?,
+                &load(&s, &pair.right).await?,
+                &req.options,
+                req.grader.as_deref(),
+                req.allow_live,
+            )
+            .await?;
         passed += usize::from(report.passed);
         results.push(json!({"name":pair.name,"left":pair.left,"right":pair.right,"report":report}));
     }

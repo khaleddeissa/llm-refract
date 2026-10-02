@@ -15,7 +15,13 @@ pub async fn request(path: &str, body: Option<Value>) -> Result<Value> {
         "REFRACT_SERVER_URL must be HTTP(S) without credentials, query or fragment"
     );
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(35))
+        .timeout(std::time::Duration::from_secs(
+            if body.as_ref().is_some_and(|b| b["allow_live"] == true) {
+                130
+            } else {
+                35
+            },
+        ))
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
     let target = format!("{}{path}", endpoint.trim_end_matches('/'));
@@ -52,4 +58,14 @@ pub async fn request(path: &str, body: Option<Value>) -> Result<Value> {
         bytes.extend_from_slice(&chunk);
     }
     Ok(serde_json::from_slice(&bytes)?)
+}
+
+pub fn run_path(id: &str) -> Result<String> {
+    ensure!(!id.is_empty() && id != "." && id != "..", "invalid run id");
+    let mut url = reqwest::Url::parse("http://localhost/v1/runs/")?;
+    url.path_segments_mut()
+        .expect("hierarchical URL")
+        .pop_if_empty()
+        .push(id);
+    Ok(url.path().to_owned())
 }

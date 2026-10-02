@@ -243,4 +243,31 @@ mod tests {
         blocked.events[1].replay_policy = ReplayPolicy::RequiresApproval;
         assert!(rerun(&blocked, &options, &Demo).is_err());
     }
+    #[test]
+    fn malformed_future_bindings_fail_before_first_callback() {
+        struct NoCalls;
+        impl Executor for NoCalls {
+            fn execute(&self, _: &Event, _: &Run) -> Result<ExecutionResult> {
+                panic!("preflight must prevent execution")
+            }
+        }
+        let mut run: Run = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/simple-run/execution.json"
+        ))
+        .unwrap();
+        run.events[1].attributes["input_bindings"] =
+            json!({"input":{"event_id":"missing","path":"/text"}});
+        assert!(
+            rerun(
+                &run,
+                &RerunOptions {
+                    from_event: "evt_1".into(),
+                    allow_live: true,
+                    ..Default::default()
+                },
+                &NoCalls
+            )
+            .is_err()
+        );
+    }
 }

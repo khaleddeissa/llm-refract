@@ -1,5 +1,13 @@
 import type { Execution } from "./index.js";
 
+export interface GenerationModel {
+  id: string;
+  label: string;
+  model: string;
+  protocol: string;
+  grading: boolean;
+  max_output_tokens: number;
+}
 export interface EmbeddingModel {
   id: string;
   label: string;
@@ -48,7 +56,12 @@ export class RefractClient {
       );
     this.url = url.replace(/\/$/, "");
   }
-  async request<T>(path: string, body?: unknown, method?: string): Promise<T> {
+  async request<T>(
+    path: string,
+    body?: unknown,
+    method?: string,
+    timeoutMs = 35_000,
+  ): Promise<T> {
     if (!path.startsWith("/v1/"))
       throw new Error("Request path must start with /v1/");
     const response = await fetch(this.url + path, {
@@ -59,7 +72,7 @@ export class RefractClient {
         ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
       },
       redirect: "error",
-      signal: AbortSignal.timeout(35_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok)
       throw new Error(`Refract request failed (${response.status})`);
@@ -118,5 +131,46 @@ export class RefractClient {
       limit,
       mode,
     });
+  }
+  async generationModels(): Promise<GenerationModel[]> {
+    return (
+      await this.request<{ models: GenerationModel[] }>("/v1/generation-models")
+    ).models;
+  }
+  rerun(
+    runId: string,
+    options: {
+      profile: string;
+      from_event: string;
+      allow_live?: boolean;
+      reuse_recorded?: string[];
+      approved_events?: string[];
+    },
+  ): Promise<Execution> {
+    if (!runId || runId === "." || runId === "..")
+      throw new Error("Invalid run id");
+    return this.request(
+      `/v1/runs/${encodeURIComponent(runId)}/rerun`,
+      options,
+      undefined,
+      130_000,
+    );
+  }
+  compare(
+    left: string,
+    right: string,
+    options: {
+      semantic?: boolean;
+      grader?: string;
+      allow_live?: boolean;
+      options?: Record<string, number>;
+    } = {},
+  ): Promise<Record<string, unknown>> {
+    return this.request(
+      "/v1/diff",
+      { left, right, semantic: true, ...options },
+      undefined,
+      130_000,
+    );
   }
 }

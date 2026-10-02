@@ -25,6 +25,35 @@ enum Command {
     },
     /// List operator-approved models and the project's enabled profiles/index status.
     EmbeddingModels,
+    /// List configured generation models and domain grading profiles.
+    GenerationModels,
+    /// Execute model steps through a server profile into a stored branch.
+    RerunModels {
+        run_id: String,
+        #[arg(long)]
+        profile: String,
+        #[arg(long)]
+        from: String,
+        #[arg(long)]
+        allow_live: bool,
+        #[arg(long = "reuse-recorded")]
+        reuse_recorded: Vec<String>,
+        #[arg(long = "approve")]
+        approved_events: Vec<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Compare stored runs using the offline heuristic or a configured model grader.
+    CompareRuns {
+        left: String,
+        right: String,
+        #[arg(long)]
+        grader: Option<String>,
+        #[arg(long)]
+        allow_live: bool,
+        #[arg(long, default_value_t = 0.75)]
+        threshold: f64,
+    },
     Inspect {
         file: PathBuf,
     },
@@ -153,6 +182,49 @@ async fn main() -> Result<()> {
                     &serde_json::json!({"models":models["models"],"project":project})
                 )?
             );
+        }
+        Command::GenerationModels => println!(
+            "{}",
+            serde_json::to_string_pretty(&service::request("/v1/generation-models", None).await?)?
+        ),
+        Command::RerunModels {
+            run_id,
+            profile,
+            from,
+            allow_live,
+            reuse_recorded,
+            approved_events,
+            output,
+        } => {
+            anyhow::ensure!(allow_live, "model rerun requires --allow-live");
+            if let Some(path) = &output {
+                anyhow::ensure!(!path.exists(), "output already exists");
+            }
+            let branch = service::request(&format!("{}/rerun", service::run_path(&run_id)?), Some(serde_json::json!({"profile":profile,"from_event":from,"allow_live":allow_live,"reuse_recorded":reuse_recorded,"approved_events":approved_events}))).await?;
+            if let Some(path) = output {
+                write(
+                    path,
+                    &refract_artifact::pack(&serde_json::from_value(branch.clone())?)?,
+                )?;
+            }
+            println!("{}", serde_json::to_string_pretty(&branch)?);
+        }
+        Command::CompareRuns {
+            left,
+            right,
+            grader,
+            allow_live,
+            threshold,
+        } => {
+            anyhow::ensure!(
+                grader.is_none() || allow_live,
+                "model grading requires --allow-live"
+            );
+            let result = service::request("/v1/diff", Some(serde_json::json!({"left":left,"right":right,"semantic":true,"grader":grader,"allow_live":allow_live,"options":{"similarity_threshold":threshold}}))).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            if result["semantic_report"]["passed"] == false {
+                std::process::exit(1);
+            }
         }
         Command::Inspect { file } => println!("{}", serde_json::to_string_pretty(&read(&file)?)?),
         Command::Validate { file } => {

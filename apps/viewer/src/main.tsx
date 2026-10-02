@@ -7,6 +7,8 @@ import type {
 import { request, setApiKey, download } from "./api";
 import { beginLogin, completeLogin, type LoginConfiguration } from "./login";
 import { ExecutionGraph } from "./graph";
+import { RerunControls } from "./generation";
+import type { GenerationModel } from "../../../packages/typescript/src/client.js";
 import { EmbeddingControls } from "./embeddings";
 import { metrics, number, difference } from "./metrics";
 import "./style.css";
@@ -36,6 +38,27 @@ function App() {
   const [authRevision, setAuthRevision] = useState(0);
   const [compareId, setCompareId] = useState("");
   const [semantic, setSemantic] = useState(true);
+  const [generationModels, setGenerationModels] = useState<GenerationModel[]>(
+    [],
+  );
+  const [grader, setGrader] = useState("");
+  const [allowGrading, setAllowGrading] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setGenerationModels([]);
+    setGrader("");
+    setAllowGrading(false);
+    void request<{ models: GenerationModel[] }>("/v1/generation-models")
+      .then((data) => {
+        if (active) setGenerationModels(data.models);
+      })
+      .catch(() => {
+        /* Authenticated discovery retries when credentials change. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [authRevision]);
   const semanticResult =
     result && typeof result === "object" && "semantic_report" in result
       ? (result.semantic_report as SemanticReport | undefined)
@@ -153,6 +176,7 @@ function App() {
             left: run.id,
             right: compareId,
             semantic,
+            ...(semantic && grader ? { grader, allow_live: allowGrading } : {}),
           }),
         );
       else
@@ -474,14 +498,59 @@ function App() {
                   />
                   Semantic comparison
                 </label>
+                {semantic && generationModels.some((m) => m.grading) && (
+                  <>
+                    <select
+                      aria-label="Semantic grader"
+                      value={grader}
+                      onChange={(e) => {
+                        setGrader(e.target.value);
+                        setAllowGrading(false);
+                      }}
+                    >
+                      <option value="">Offline heuristic</option>
+                      {generationModels
+                        .filter((m) => m.grading)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label} · domain rubric
+                          </option>
+                        ))}
+                    </select>
+                    {grader && (
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={allowGrading}
+                          onChange={(e) => setAllowGrading(e.target.checked)}
+                        />
+                        Authorize model grading calls
+                      </label>
+                    )}
+                  </>
+                )}
                 <button
-                  disabled={busy || !compareId}
+                  disabled={
+                    busy ||
+                    !compareId ||
+                    (semantic && !!grader && !allowGrading)
+                  }
                   onClick={() => void action("diff")}
                 >
                   Diff
                 </button>
               </div>
             </section>
+            <RerunControls
+              key={`${run.id}:${selected?.id}:${authRevision}`}
+              run={run}
+              selected={selected}
+              models={generationModels}
+              onBranch={(branch) => {
+                setRuns((previous) => [branch, ...previous]);
+                choose(branch);
+              }}
+            />
             {summary && candidate && (
               <section className="comparison" aria-label="Metric comparison">
                 <div className="panel-heading">
@@ -607,9 +676,9 @@ function App() {
                       {semanticResult.changed} changed events
                     </p>
                     <p className="muted">
-                      The offline grader compares normalized words, numbers and
-                      negation. Review meaning and factual accuracy when they
-                      matter.
+                      The default offline grader compares normalized words,
+                      numbers and negation. Review meaning and factual accuracy
+                      when they matter.
                     </p>
                     {semanticResult.differences.length > 0 && (
                       <table>
