@@ -97,3 +97,25 @@ an artifact even if evaluation fails. See [CI usage](ci.md).
 The API also compares stored runs through `POST /v1/eval` using
 `{"pairs":[{"name":"refund","left":"baseline-id","right":"candidate-id"}],"options":{}}`.
 MCP exposes this as `evaluate_runs`. Every referenced run must be visible to the authenticated scope.
+
+## Configured model grading in the service
+
+A [generation profile](rerun.md#server-inspector-sdk-and-mcp-model-reruns) with `grading_rubric`
+can grade stored runs. The rubric is operator-owned; the compared outputs are delimited JSON data.
+Refract checks event structure and policies first, grades only compatible changed outputs, and
+applies the same token/cost/latency budgets afterward. Identical outputs need no provider call.
+
+```bash
+refract compare-runs baseline-id candidate-id --grader refund-domain --allow-live --threshold 0.9
+```
+
+API `/v1/diff` and `/v1/eval` accept `grader` and `allow_live` alongside their existing options.
+In the Inspector choose **Semantic grader** and enable **Authorize model grading calls**.
+MCP `grade_runs` is available only with `REFRACT_MCP_ALLOW_LIVE=1`; Python and Node service clients
+provide `compare(..., grader=..., allow_live=True)` / `compare(..., {grader, allow_live:true})`.
+
+A model must return only JSON `{score,equivalent,reason}`, with a finite score in 0..1 and a nonempty
+reason. Malformed/unavailable grading produces `grader_error` and a failing report. No heuristic
+fallback silently turns model failures into passes. Each comparison permits 32 distinct changed-output
+pairs and a 120-second grading deadline. Budget failures remain failures even if the model approves the
+meaning. Model judgments depend on the configured rubric and model; review them as evidence, not proof.

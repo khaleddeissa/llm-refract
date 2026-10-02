@@ -13,7 +13,7 @@ class Response:
     def __exit__(self, *args):
         pass
 
-    def read(self):
+    def read(self, size=-1):
         return b"{}"
 
 
@@ -30,7 +30,9 @@ def test_exporter_batches_auth_sampling_and_graceful_close(monkeypatch):
         requests.append(request)
         return Response()
 
-    monkeypatch.setattr(urllib.request, "urlopen", send)
+    monkeypatch.setattr(
+        urllib.request.OpenerDirector, "open", lambda self, *a, **kw: send(*a, **kw)
+    )
     exporter = BackgroundExporter(
         "http://collector", api_key="private", batch_size=3, flush_interval=60
     )
@@ -53,7 +55,9 @@ def test_retry_spool_recovers_after_restart(monkeypatch, tmp_path):
     def offline(*args, **kwargs):
         raise OSError("network down")
 
-    monkeypatch.setattr(urllib.request, "urlopen", offline)
+    monkeypatch.setattr(
+        urllib.request.OpenerDirector, "open", lambda self, *a, **kw: offline(*a, **kw)
+    )
     first = BackgroundExporter("http://collector", spool_dir=tmp_path, retries=0, flush_interval=60)
     assert first.submit(snapshot())
     assert first.close() is False
@@ -66,7 +70,9 @@ def test_retry_spool_recovers_after_restart(monkeypatch, tmp_path):
         sent.extend(json.loads(request.data)["runs"])
         return Response()
 
-    monkeypatch.setattr(urllib.request, "urlopen", online)
+    monkeypatch.setattr(
+        urllib.request.OpenerDirector, "open", lambda self, *a, **kw: online(*a, **kw)
+    )
     second = BackgroundExporter(
         "http://collector", spool_dir=tmp_path, retries=0, flush_interval=60
     )
@@ -86,7 +92,9 @@ def test_bounded_queue_does_not_wait_for_network(monkeypatch):
         release.wait(2)
         return Response()
 
-    monkeypatch.setattr(urllib.request, "urlopen", slow)
+    monkeypatch.setattr(
+        urllib.request.OpenerDirector, "open", lambda self, *a, **kw: slow(*a, **kw)
+    )
     exporter = BackgroundExporter("http://collector", queue_size=1, batch_size=1)
     try:
         assert exporter.submit(snapshot())
@@ -152,3 +160,12 @@ def test_durable_acceptance_survives_worker_not_running(tmp_path, monkeypatch):
     )
     assert not full.submit(recording.snapshot())
     assert full.stats["accepted"] == 0
+
+
+def test_spool_defaults_to_fsync_acceptance_and_rejects_redirects(tmp_path, monkeypatch):
+    monkeypatch.setattr(threading.Thread, "start", lambda self: None)
+    exporter = BackgroundExporter("http://collector", spool_dir=tmp_path)
+    assert exporter.durable is True
+    assert exporter.submit(snapshot())
+    assert len(list(tmp_path.glob("*.json"))) == 1
+    assert any(type(handler).__name__ == "_NoRedirect" for handler in exporter._opener.handlers)

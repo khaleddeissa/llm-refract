@@ -158,7 +158,7 @@ def main():
                 source.backup(destination)
                 assert destination.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 33
                 assert (
-                    destination.execute("SELECT COUNT(*) FROM _sqlx_migrations").fetchone()[0] == 7
+                    destination.execute("SELECT COUNT(*) FROM _sqlx_migrations").fetchone()[0] == 8
                 )
         with sqlite3.connect(backup) as source, sqlite3.connect(restored) as destination:
             source.backup(destination)

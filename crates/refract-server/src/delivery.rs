@@ -199,7 +199,7 @@ impl Delivery {
                     .as_ref()
                     .ok_or_else(|| anyhow!("webhook is no longer configured"))?;
                 let body = serde_json::to_string(
-                    &json!({"id":job.id,"scope":job.scope,"operation":job.operation,"run_id":job.run_id,"payload":payload}),
+                    &json!({"id":job.id,"version":job.version,"scope":job.scope,"operation":job.operation,"run_id":job.run_id,"payload":payload}),
                 )?;
                 let mut request = self
                     .client

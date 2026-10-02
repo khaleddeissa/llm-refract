@@ -8,20 +8,22 @@ import os
 import queue
 import threading
 import time
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
 from typing import Any, Self
 
 from . import _snapshot
+from .client import _NoRedirect
 
 
 class BackgroundExporter:
     """Submit snapshots without network/disk I/O on the application's thread.
 
-    The worker spools before transmitting. A process crash before that worker write can
-    lose queued events. durable=True instead fsyncs the redacted snapshot and directory
-    before submit returns True; it requires a dedicated POSIX spool and adds disk latency.
+    A configured spool defaults to durable acceptance: fsync the redacted snapshot and
+    directory before submit returns True. This requires a dedicated POSIX spool and adds
+    disk latency. Explicit durable=False opts into asynchronous, best-effort acceptance.
     Use one exporter per spool directory and call close during graceful shutdown.
     """
 
@@ -38,12 +40,20 @@ class BackgroundExporter:
         timeout: float = 5.0,
         retries: int = 2,
         spool_dir: str | Path | None = None,
-        durable: bool = False,
+        durable: bool | None = None,
         max_spool_bytes: int = 64 * 1024 * 1024,
         max_queue_bytes: int = 16 * 1024 * 1024,
     ):
-        if not endpoint.startswith(("http://", "https://")):
-            raise ValueError("endpoint must be an HTTP(S) URL")
+        parsed = urllib.parse.urlsplit(endpoint)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("endpoint must be HTTP(S) without credentials, query or fragment")
         if not 0 <= sample_rate <= 1 or not 1 <= batch_size <= 100 or queue_size < 1:
             raise ValueError("invalid sampling rate, batch size (1..100), or queue size")
         if min(flush_interval, timeout, max_queue_bytes, max_spool_bytes) <= 0 or retries < 0:
@@ -57,6 +67,8 @@ class BackgroundExporter:
         self.batch_size, self.sample_rate = batch_size, sample_rate
         self.flush_interval, self.timeout, self.retries = flush_interval, timeout, retries
         self.spool_dir = Path(spool_dir) if spool_dir is not None else None
+        durable = spool_dir is not None if durable is None else durable
+        self._opener = urllib.request.build_opener(_NoRedirect())
         if durable and self.spool_dir is None:
             raise ValueError("durable acceptance requires spool_dir")
         if durable and os.name != "posix":
@@ -119,7 +131,7 @@ class BackgroundExporter:
         size = sum(p.stat().st_size for p in self.spool_dir.glob("*.json") if not p.is_symlink())
         if size + len(body) > self.max_spool_bytes:
             raise OSError("retry spool capacity exceeded")
-        target = self.spool_dir / f"{uuid.uuid4().hex}.json"
+        target = self.spool_dir / f"{time.time_ns():020d}-{uuid.uuid4().hex}.json"
         temporary = target.with_suffix(".tmp")
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "wb") as stream:
@@ -140,11 +152,17 @@ class BackgroundExporter:
         for attempt in range(self.retries + 1):
             try:
                 request = urllib.request.Request(self.endpoint, body, self.headers, method="POST")
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                    response.read()
+                with self._opener.open(request, timeout=self.timeout) as response:
+                    response.read(1024 * 1024 + 1)
                 for _, path in entries:
                     if path:
                         path.unlink(missing_ok=True)
+                if self.durable and self.spool_dir:
+                    descriptor = os.open(self.spool_dir, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
                 self._count("sent", len(entries))
                 self.last_error = None
                 return True
@@ -159,7 +177,7 @@ class BackgroundExporter:
         if self.spool_dir is None:
             return
         entries: list[tuple[bytes, Path | None]] = []
-        for path in self.spool_dir.glob("*.json"):
+        for path in sorted(self.spool_dir.glob("*.json"), key=lambda p: p.stat().st_mtime_ns):
             if path.is_symlink() or path.stat().st_size > self.max_spool_bytes:
                 continue
             try:

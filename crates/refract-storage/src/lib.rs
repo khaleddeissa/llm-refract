@@ -155,6 +155,7 @@ pub struct OutboxJob {
     pub operation: String,
     pub attempts: i64,
     pub lease_token: String,
+    pub version: i64,
 }
 
 const FILTER: &str = " FROM runs r WHERE r.organization=$1 AND r.project=$2 AND r.environment=$3
@@ -322,9 +323,12 @@ impl Store {
         target: &str,
         operation: &str,
     ) -> Result<()> {
-        sqlx::query("INSERT INTO outbox(id,organization,project,environment,run_id,target,operation) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING")
+        let (version,): (i64,) = sqlx::query_as("INSERT INTO delivery_versions(organization,project,environment,run_id,version) VALUES($1,$2,$3,$4,1) ON CONFLICT(organization,project,environment,run_id) DO UPDATE SET version=delivery_versions.version+1 RETURNING version")
+            .bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment).bind(run_id).fetch_one(&mut **tx).await?;
+        // Replace pending payload identity, but preserve any active lease deadline before redelivery.
+        sqlx::query("INSERT INTO outbox(id,organization,project,environment,run_id,target,operation,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(organization,project,environment,run_id,target,operation) DO UPDATE SET id=excluded.id,version=excluded.version,lease_token='',attempts=0")
             .bind(refract_core::id("delivery")).bind(&self.scope.organization).bind(&self.scope.project).bind(&self.scope.environment)
-            .bind(run_id).bind(target).bind(operation).execute(&mut **tx).await?;
+            .bind(run_id).bind(target).bind(operation).bind(version).execute(&mut **tx).await?;
         Ok(())
     }
     pub async fn get(&self, id: &str) -> Result<Option<Run>> {
@@ -473,7 +477,7 @@ impl Store {
     /// Durable at-least-once delivery with a 120-second timeout lease. Consumers must deduplicate IDs.
     pub async fn claim_outbox(&self) -> Result<Option<OutboxJob>> {
         let now = Utc::now().timestamp();
-        let rows = sqlx::query("SELECT id,organization,project,environment,run_id,target,operation,attempts,available_at FROM outbox WHERE available_at <= $1 ORDER BY available_at,id LIMIT 10")
+        let rows = sqlx::query("SELECT id,organization,project,environment,run_id,target,operation,attempts,available_at,version FROM outbox WHERE available_at <= $1 ORDER BY available_at,id LIMIT 10")
             .bind(now).fetch_all(&mut *self.connection().await?).await?;
         for r in rows {
             let id: String = r.try_get("id")?;
@@ -499,6 +503,7 @@ impl Store {
                     target: r.try_get("target")?,
                     operation: r.try_get("operation")?,
                     attempts: r.try_get("attempts")?,
+                    version: r.try_get("version")?,
                     lease_token,
                 }));
             }
@@ -609,7 +614,7 @@ mod tests {
                 .fetch_one(&store.pool)
                 .await
                 .unwrap();
-        assert_eq!(versions, 7);
+        assert_eq!(versions, 8);
         store.pool.close().await;
         std::fs::remove_file(path).unwrap();
     }
@@ -720,6 +725,7 @@ mod tests {
             .is_err()
         );
         let job = store.claim_outbox().await.unwrap().unwrap();
+        assert_eq!(job.version, 1);
         assert!(store.claim_outbox().await.unwrap().is_none());
         store.acknowledge(&job).await.unwrap();
         assert_eq!(store.outbox_pending().await.unwrap(), 0);
@@ -731,10 +737,9 @@ mod tests {
             1
         );
         assert!(store.get(&run.id).await.unwrap().is_none());
-        assert_eq!(
-            store.claim_outbox().await.unwrap().unwrap().operation,
-            "delete"
-        );
+        let deletion = store.claim_outbox().await.unwrap().unwrap();
+        assert_eq!(deletion.operation, "delete");
+        assert!(deletion.version > job.version);
     }
 }
 

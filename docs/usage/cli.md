@@ -1,4 +1,4 @@
-# Offline CLI mode
+# CLI mode
 
 `refract` is the Rust executable. Install from the checkout with `cargo install --path crates/refract-cli`
 or prefix commands with `cargo run -p refract-cli --`. The Docker image also contains this executable.
@@ -36,3 +36,18 @@ refract rerun baseline.rfr --from evt_2 --executor python3 \
 
 See [metrics](metrics.md), [executable rerun](rerun.md), and [semantic evaluation](evaluation.md)
 for schemas, trust boundaries, exit codes and runnable examples.
+
+
+## Configured service models
+
+Use `REFRACT_SERVER_URL` and `REFRACT_API_KEY` (or `_FILE`) for authenticated service commands:
+
+```bash
+refract generation-models
+refract rerun-models RUN_ID --from evt_answer --profile candidate --allow-live -o branch.rfr
+refract compare-runs RUN_ID BRANCH_ID --grader domain --allow-live
+```
+
+`--reuse-recorded EVENT_ID` and `--approve EVENT_ID` are repeatable on `rerun-models`.
+`compare-runs` exits 1 on a failing semantic report and 0 on a pass. Offline `diff` and `rerun` remain
+available for artifacts and trusted local executors.

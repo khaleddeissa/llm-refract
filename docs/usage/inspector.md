@@ -85,3 +85,16 @@ parent relationships and synthetic provider metrics, run the
 Browser tests cover timeline actions, artifact export, graph selection, metrics, comparison,
 structured search, and tab-scoped credentials. Run `npx playwright test -c apps/viewer/playwright.config.ts`
 against a running current server, or set `REFRACT_SERVER_URL` for another test instance.
+
+
+## Model experiments
+
+Operators expose [generation profiles](rerun.md#server-inspector-sdk-and-mcp-model-reruns). Select an
+ event, open **Rerun with a model**, choose a model and authorize the displayed calls. If the suffix
+contains retrieval/tool/state steps, explicitly select output reuse and any required policy approvals.
+The new branch appears immediately and can be compared with its baseline. Original recordings remain
+unchanged. The panel resets consent when the selected event, run or credentials change.
+
+For domain grading, select a **Semantic grader** next to the comparison controls and authorize grading
+calls. Profiles without a rubric remain available for generation but do not appear as graders. The
+result includes the grader's score, identity and reason; unavailable/invalid model judgments fail.

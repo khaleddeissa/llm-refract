@@ -60,3 +60,9 @@ References: [SQLx embedded migrations](https://docs.rs/sqlx/latest/sqlx/macro.mi
 The disposable [recovery rehearsal](../tests/integration/recovery.py) upgrades an original v1 database,
 verifies existing recordings, backs up committed WAL data, restores into a fresh file and tests key
 rotation plus graceful and forced shutdown. Run `make test-recovery` after building the server.
+
+
+Migration `0008_delivery_versions.sql` assigns monotonic delivery versions independently of wall
+clocks. Counters survive payload retention, while inbox tombstones reject delayed older messages.
+After upgrading an RLS deployment, reapply `deploy/production/row-security.sql` before starting its
+restricted runtime. The runtime verifies all twelve scoped tables have forced row security.

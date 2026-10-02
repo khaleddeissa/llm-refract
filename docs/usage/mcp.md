@@ -1,6 +1,6 @@
 # MCP agent mode
 
-`refract-mcp` (installed via `pip install "llm-refract[mcp]"`) is a stdio service built with the official MCP Python SDK. It calls the Rust API; it does not duplicate the execution engine or run model/tool code. Install from [source](../development.md).
+`refract-mcp` (installed via `pip install "llm-refract[mcp]"`) is a stdio service built with the official MCP Python SDK. It calls the Rust API; it shares the execution engine. Optional live tools call operator-configured model profiles; application tools are never executed. Install from [source](../development.md).
 
 ```json
 {
@@ -52,9 +52,13 @@ changes. `evaluate_runs` accepts named `{name,left,right}` pairs and evaluation 
 `model`, `tool`, `min_duration_ms`, `limit` and `offset`; it is no longer limited to filtering a local
 100-run window. All queries remain within the key's scope.
 
-There are sixteen read tools and two opt-in write tools. Executable rerun is available through trusted
-SDK/CLI executors, while MCP intentionally remains an evidence/query interface and never executes
-arbitrary commands from a tool argument or recording.
+There are seventeen default read tools and two opt-in write tools. `generation_models()` lists the
+available generation/grading profiles. Set `REFRACT_MCP_ALLOW_LIVE=1` to expose `grade_runs`, which
+requires `allow_live=True` for configured model grading. With both live and write flags, `rerun_models`
+creates a branch through a configured provider profile. It requires `allow_live=True`, individual
+`approved_events` where needed, and `reuse_recorded` event IDs for all non-model steps. Live tool
+annotations mark external calls and non-idempotent behavior. Service roles/scopes still apply.
+No tool runs arbitrary commands from arguments or recordings. See [model reruns](rerun.md).
 
 `embedding_models()` lists available/enabled project models and index status. Use
 `search_text("refund request", profile="local", limit=10)` to generate a query embedding and search

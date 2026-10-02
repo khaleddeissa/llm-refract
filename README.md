@@ -64,7 +64,7 @@ MCP and the UI call the same API. Skills provide operating instructions; they ar
   latency and errors; Python also integrates LangChain callbacks; OpenTelemetry export connects both SDKs to Langfuse and other trace backends.
 - **Optimization:** compare measured token usage, latency and explicitly priced cost; refresh approved price feeds and reconcile mapped invoice rows. Missing prices
   stay unknown. Find expensive calls and slow steps directly in the execution graph.
-- **Executable branches:** supply trusted application executors to rerun a suffix with another model
+- **Executable branches:** choose a configured model in the Inspector, API or SDK, or supply application executors to rerun a suffix
   or implementation, or continue an application-owned LangGraph checkpoint. Prefix evidence and lineage stay attached to the new recording.
 - **Regression datasets:** grade outputs with the offline heuristic or a custom model grader and apply
   cost/token/latency budgets across named cases. Integrate results into CI or MCP investigations.
@@ -158,7 +158,7 @@ them; [conversion instructions](docs/usage/artifacts.md) explain how to create a
 Checked-in samples live in [examples/artifacts](examples/artifacts); generated examples go in `.examples/`.
 
 Recorded replay returns captured outputs and never invokes external tools/models. Forking preserves
-a prefix and lineage. Executable `rerun` uses explicitly supplied handlers; it cannot restore arbitrary
+a prefix and lineage. Model reruns use configured provider profiles; application tool reruns use explicitly supplied handlers; it cannot restore arbitrary
 process memory from an artifact. `diff --semantic` adds pluggable output grading and metric budgets.
 Regression checks need a **fresh** execution from the code under test.
 

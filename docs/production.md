@@ -161,9 +161,10 @@ or compliance certification. Shared rate limits, OIDC bearer authentication, sub
 are implemented. Browser PKCE login, keyring rotation and optional PostgreSQL row-level security are implemented and
 covered by local tests. See [backup and recovery](usage/recovery.md) for repeatable deployment rehearsals. Transport/database credentials and backup lifecycle remain deployment responsibilities.
 
-The API performs recorded playback and prefix forks; it does not run arbitrary provider/tool code on the
-service. Executable reruns use explicitly registered handlers in your application or CLI, with approvals
-for declared side effects. See [rerun](usage/rerun.md) and [migration operations](migrations.md).
+The API supports recorded playback, prefix forks and model reruns through operator-owned
+`REFRACT_GENERATION_PROFILES` (or `_FILE`). Profiles fix the endpoint, authentication, model, output
+budget and allowed scopes. Provider calls require explicit opt-in. Application tool execution uses
+trusted local SDK/CLI handlers, with approvals for declared side effects. See [rerun](usage/rerun.md) and [migration operations](migrations.md).
 
 ## 0.1.4 service extensions
 

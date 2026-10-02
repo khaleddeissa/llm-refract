@@ -125,6 +125,14 @@ mod tests {
         );
         assert!(store.acknowledge(&job).await.is_err());
         assert!(updated.claim_outbox().await.unwrap().is_none());
+        sqlx::query("UPDATE outbox SET available_at=0")
+            .execute(&updated.pool)
+            .await
+            .unwrap();
+        let rotated = updated.claim_outbox().await.unwrap().unwrap();
+        assert_ne!(rotated.id, job.id);
+        assert!(rotated.version > job.version);
+
         assert_eq!(
             updated
                 .vector_search(

@@ -135,3 +135,40 @@ it("serializes concurrent acceptance and rejects conflicting snapshots", async (
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it("drains all disk backlog across smaller recovery queue windows", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "refract-backlog-"));
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+  const first = new BatchExporter({
+    endpoint: "http://fixture.invalid",
+    spoolDirectory: directory,
+    maxAttempts: 1,
+    flushIntervalMs: 60_000,
+  });
+  try {
+    for (let i = 0; i < 5; i++)
+      await refract.run(`run-${i}`, () => i, {
+        exporter: first,
+        failOpen: false,
+      });
+    await first.shutdown();
+    expect(await readdir(directory)).toHaveLength(5);
+    const fetch = vi.fn().mockImplementation(async () => new Response("{}"));
+    vi.stubGlobal("fetch", fetch);
+    const recovered = new BatchExporter({
+      endpoint: "http://fixture.invalid",
+      spoolDirectory: directory,
+      maxQueueSize: 2,
+      batchSize: 1,
+      maxAttempts: 1,
+    });
+    await recovered.shutdown();
+    expect(recovered.stats.exported).toBe(5);
+    expect(fetch).toHaveBeenCalledTimes(5);
+    expect(fetch.mock.calls[0][1].redirect).toBe("error");
+    expect(await readdir(directory)).toHaveLength(0);
+  } finally {
+    await first.shutdown();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

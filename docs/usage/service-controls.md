@@ -76,8 +76,8 @@ logging for request origin and rate control. Backup expiry remains the storage o
 
 Python `BackgroundExporter(..., spool_dir="/private/spool", durable=True)` synchronously fsyncs both
 file contents and the directory rename before returning `True` from `submit`. It requires POSIX and a
-dedicated directory on a persistent volume. This adds disk latency; the default remains a background
-retry spool. Capacity errors return `False`, which applications can handle explicitly. Delivery is still
+dedicated directory on a persistent volume. This adds disk latency. Configuring a spool now enables durability by default; explicitly set
+`durable=False` to choose asynchronous best-effort spooling. Without a spool, acceptance is in memory. Capacity errors return `False`, which applications can handle explicitly. Delivery is still
 at least once: a crash after remote commit but before acknowledgement can resend a snapshot.
 
 Worker acknowledgements carry a lease token, preventing an expired worker from acknowledging a job
@@ -147,7 +147,7 @@ change session settings. SQLite isolation remains application-enforced.
 
 Node `BatchExporter` also supports `durable: true`, `spoolDirectory`, `maxQueueBytes` and `maxSpoolBytes`.
 Await export acceptance and use `failOpen: false` if disk failure must fail the recording call. Keep one
-exporter per private POSIX spool, and keep recovery queue limits at least as large as when it was written.
+exporter per private POSIX spool, and recovery drains backlogs across as many bounded queue windows as needed.
 A forced kill after disk acceptance is recoverable on restart. No mode guarantees remote exactly-once
 side effects; lease fencing protects acknowledgement, and retention waits for an in-flight PUT lease
 before scheduling deletion. Do not assume global ordering across separate recordings or targets.
@@ -155,3 +155,19 @@ before scheduling deletion. Do not assume global ordering across separate record
 Audit exports use offset pagination over a live audit log. Export requests themselves add audit entries;
 archive consumers must deduplicate entry IDs and account for concurrent inserts, or take a consistent
 database snapshot for a strict point-in-time archive. The API is intended for bounded operational export.
+
+
+### Signed receiver inboxes and delivery versions
+
+Each webhook contains a database-assigned `version` for its scoped run. Pending payload changes
+receive a fresh delivery ID/version; retries of the same payload retain their ID. Deletions carry a
+higher version. Version counters survive run retention so a delayed message cannot reset ordering.
+Migration 0008 stores these small identifiers separately from execution payloads; include the table
+in backups and the optional RLS deployment policy.
+
+Use `refract.delivery.WebhookInbox` in Python or `openWebhookInbox` in Node to verify HMAC signatures,
+commit duplicate receipts and apply the newest payload in one SQLite transaction. Deletion tombstones
+fence older PUTs. See [runnable receivers](../../examples/delivery/README.md). A receiver must return
+2xx only after this commit. Persistent receipt/version state turns repeated HTTP deliveries into a
+single local state transition; unrelated external actions need their own transactional/idempotent
+boundary. Transport is still at least once, and unrelated runs have no global ordering requirement.

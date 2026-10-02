@@ -358,3 +358,5 @@ export {
   type TextSearchResult,
   type VectorMatch,
 } from "./client.js";
+export { verifyDelivery, WebhookInbox, openWebhookInbox } from "./delivery.js";
+export type { DeliveryMessage } from "./delivery.js";

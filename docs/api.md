@@ -74,8 +74,9 @@ curl --fail -X POST "$REFRACT_URL/v1/eval" \
 
 A diff response contains `first_divergence`, `differences`, `metric_changes` and `semantic_report`
 (null unless requested). Evaluation returns `passed`, `total`, `regressions`, `equivalent` and named
-`results`. These endpoints use the built-in offline grader; custom/model graders and dataset manifests
-are supported by local [evaluation](usage/evaluation.md), not executed by the HTTP server.
+`results`. These endpoints use the offline grader by default. Set `grader` to a configured profile and
+`allow_live:true` to use its domain rubric and model. Dataset manifests are supported by local
+[evaluation](usage/evaluation.md).
 
 The export content type is `application/vnd.refract.rfr`. POST ingestion expects execution JSON,
 not the artifact header/body encoding: decode/validate the file first. Native HTTP/protobuf and gRPC trace receivers are documented in [OpenTelemetry](usage/otel.md).
@@ -115,3 +116,14 @@ Text and vector search accept `mode: "auto"` (default), `"exact"`, or `"approxim
 Read the [search guide](usage/search.md) for provider profiles, preprocessing, namespaces,
 worker recovery, cache sizing, and SDK examples. Text search may call the selected provider; vector
 search only uses submitted/stored vectors.
+
+
+## Generation models and executable branches
+
+- `GET /v1/generation-models`: scoped, public profile metadata; no endpoints/credentials.
+- `POST /v1/runs/{id}/rerun`: writer creates a stored model branch with
+  `{profile,from_event,allow_live,approved_events:[],reuse_recorded:[]}`.
+- `POST /v1/diff` and `/v1/eval`: optional `grader` profile and `allow_live:true` enable configured
+  domain grading. Failures produce failing reports, never implied equivalence.
+
+See [model execution](usage/rerun.md) for profiles, consent, provider protocols and timeout/size budgets.
