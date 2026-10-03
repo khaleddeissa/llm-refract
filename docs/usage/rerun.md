@@ -178,3 +178,5 @@ const report = await client.compare("RUN_ID", branch.id, {
 The Inspector's **Rerun with a model** panel lists available profiles, displays the selected start step,
 and requires provider-call consent plus explicit output-reuse/policy approvals. MCP requires both
 `REFRACT_MCP_ALLOW_WRITES=1` and `REFRACT_MCP_ALLOW_LIVE=1` for `rerun_models`; see [MCP](mcp.md).
+
+![Current Inspector controls for explicit model-rerun consent](../../assets/Inspector_Layout_3.PNG)

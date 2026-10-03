@@ -119,3 +119,5 @@ reason. Malformed/unavailable grading produces `grader_error` and a failing repo
 fallback silently turns model failures into passes. Each comparison permits 32 distinct changed-output
 pairs and a 120-second grading deadline. Budget failures remain failures even if the model approves the
 meaning. Model judgments depend on the configured rubric and model; review them as evidence, not proof.
+
+![Current Inspector comparison of a changed policy deadline](../../assets/Inspector_Layout_2.PNG)

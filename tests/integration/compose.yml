@@ -21,7 +21,7 @@ services:
       - "127.0.0.1:${REFRACT_TEST_PORT:-51098}:8000"
     environment:
       REFRACT_DATABASE_URL: postgres://postgres:local-smoke-password@postgres:5432/refract
-      REFRACT_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      REFRACT_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
       REFRACT_OIDC_ISSUER: https://local.identity.invalid
       REFRACT_OIDC_AUDIENCE: refract
       REFRACT_OIDC_JWKS_URL: https://local.identity.invalid/keys

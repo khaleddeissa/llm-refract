@@ -107,6 +107,12 @@ subprocess.run(
     env={**os.environ, "REFRACT_SERVER_URL": endpoint, "REFRACT_API_KEY": key},
 )
 assert "redacted-fixture" not in json.dumps(client.telemetry(kind="logs"))
+assert (
+    client.telemetry(kind="metrics")["records"][0]["payload"]["metric"]["sum"]["dataPoints"][0][
+        "asInt"
+    ]
+    == 1
+)
 user = client.request(
     "/scim/v2/Users", {"userName": "demo-" + suffix, "externalId": "demo-" + suffix}
 )
@@ -155,14 +161,28 @@ with tempfile.TemporaryDirectory(prefix="refract-artifacts-") as directory:
     assert unpack(first.read_bytes()) == baseline
     subprocess.run(["node", ROOT / "tests/contract/artifact.mjs", first], check=True)
     cli = ROOT / "target/debug/refract"
-    if cli.exists():
-        module_spec = importlib.util.spec_from_file_location(
-            "regression", ROOT / "packages/github-action/compare.py"
+    if not cli.exists() or os.environ.get("REFRACT_SMOKE_DOCKER_CLI") == "1":
+        assert os.environ.get("REFRACT_TEST_IMAGE"), "Set REFRACT_TEST_IMAGE for the Docker CLI"
+        cli = directory / "refract"
+        cli.write_text(
+            '#!/bin/sh\nexec docker run --rm --network none --user "$(id -u):$(id -g)" '
+            '--mount "type=bind,source=$REFRACT_SMOKE_ARTIFACTS,'
+            'target=$REFRACT_SMOKE_ARTIFACTS,readonly" '
+            '--entrypoint refract "$REFRACT_TEST_IMAGE" "$@"\n'
         )
-        module = importlib.util.module_from_spec(module_spec)
-        module_spec.loader.exec_module(module)
+        cli.chmod(0o700)
+        os.environ["REFRACT_SMOKE_ARTIFACTS"] = str(directory)
+    module_spec = importlib.util.spec_from_file_location(
+        "regression", ROOT / "packages/github-action/compare.py"
+    )
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    try:
         assert module.compare(first, first, str(cli))["passed"]
         assert not module.compare(first, second, str(cli))["passed"]
+    except subprocess.CalledProcessError as error:
+        print(error.stderr.decode() if isinstance(error.stderr, bytes) else error.stderr)
+        raise
 
 subprocess.run(
     ["node", ROOT / "tests/integration/full_stack.mjs"],

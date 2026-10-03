@@ -146,7 +146,7 @@ fn decode<T: Message + Default + serde::de::DeserializeOwned>(
         .next()
         .unwrap_or("")
     {
-        "application/json" => Ok((serde_json::from_slice(&bytes).map_err(invalid)?, true)),
+        "application/json" => Ok((otel::decode_json(&bytes)?, true)),
         "application/x-protobuf" => Ok((T::decode(bytes).map_err(invalid)?, false)),
         _ => Err(ApiError(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,

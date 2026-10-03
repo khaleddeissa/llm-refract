@@ -217,3 +217,5 @@ restart or namespace update may rebuild a graph. Storage tests cover 10,050 vect
 recall, exact retrieval, tenant isolation, replacement through an independent connection pool,
 reopen/rebuild, and retention. The Inspector uses automatic mode; SDK/API callers can select exact
 mode for comparisons and audits.
+
+![Project embedding selection and text search in the current Inspector](../../assets/Inspector_Search.PNG)

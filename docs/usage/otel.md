@@ -195,3 +195,5 @@ attributes; MCP exposes `telemetry_records`. Telemetry uses tenant isolation, en
 and the configured receipt-time retention period. Manual `/v1/admin/retention` also expires telemetry.
 Pages have at most 100 records/12 MiB; ingestion allows 10,000 records/16 MiB per export and 1 MiB per
 normalized record. Invalid batches roll back. See [runnable local examples](../../examples/otel/README.md).
+
+![Scoped logs and redacted attributes in the current Inspector](../../assets/Inspector_Telemetry.PNG)

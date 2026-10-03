@@ -13,6 +13,7 @@ RUN npm ci && npm run build
 
 # Build the Rust CLI and server.
 FROM rust:1.94-bookworm AS rust
+ARG TARGETARCH
 
 WORKDIR /build
 
@@ -20,9 +21,14 @@ COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates crates
 COPY tests/fixtures tests/fixtures
 
-RUN cargo build --release --locked \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=refract-target-${TARGETARCH},target=/build/target,sharing=locked \
+    cargo build --release --locked \
     -p refract-cli \
-    -p refract-server
+    -p refract-server \
+    && mkdir -p /build/bin \
+    && cp target/release/refract target/release/refract-server /build/bin/
 
 
 # Create the minimal production runtime image.
@@ -40,8 +46,8 @@ RUN apt-get update \
     && chown refract:refract /data
 
 # Copy compiled binaries, UI assets, and the entrypoint.
-COPY --from=rust /build/target/release/refract /usr/local/bin/refract
-COPY --from=rust /build/target/release/refract-server /usr/local/bin/refract-server
+COPY --from=rust /build/bin/refract /usr/local/bin/refract
+COPY --from=rust /build/bin/refract-server /usr/local/bin/refract-server
 COPY --from=ui /build/apps/viewer/dist /app/ui
 COPY --chmod=755 deploy/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 

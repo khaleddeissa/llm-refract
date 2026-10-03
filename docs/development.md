@@ -74,3 +74,45 @@ docker build -t llm-refract:local .
 
 `make hooks` installs pre-commit and commit-message checks. GitHub workflows run on pushes, pull
 requests or manual dispatch as applicable, never on cron. Dependabot checks monthly.
+
+## Integrated local stack and Inspector media
+
+The combined smoke uses a disposable PostgreSQL database, the production Docker image and deterministic
+local provider/webhook/S3 fixtures. No live model account or cloud service is contacted.
+
+```bash
+docker build -t llm-refract:0.1.4-final .
+export REFRACT_TEST_IMAGE=llm-refract:0.1.4-final
+docker compose -p refract-smoke -f tests/integration/compose.yml up -d --wait
+npm run build -w @llm-refract/sdk
+uv run --locked --all-packages --all-extras python tests/integration/full_stack.py
+docker compose -p refract-smoke -f tests/integration/compose.yml restart server
+docker compose -p refract-smoke -f tests/integration/compose.yml up -d --wait
+uv run --locked --all-packages --all-extras python tests/integration/full_stack.py --verify-restart
+```
+
+The default endpoint is `http://127.0.0.1:51098`. Fixture credentials are committed solely for this
+isolated test and must never be used for real data. The scenario verifies authenticated Python/Node
+capture, durable delivery, `.rfr` interoperability, CLI/action comparisons, MCP, automatic embeddings,
+exact/approximate search, model rerun/grading, OTLP signals, SCIM deactivation and outbox draining.
+The Rust test suite separately exercises real local OIDC code/refresh exchanges and cookie controls.
+The mock S3 receiver checks the signing headers/session token; it does not emulate S3 authorization.
+Artifact comparisons use the local debug CLI when available, otherwise the Docker image selected by
+`REFRACT_TEST_IMAGE`. Set `REFRACT_SMOKE_DOCKER_CLI=1` to exercise the container CLI explicitly.
+
+After smoke completion, capture documentation media from the actual UI:
+
+```bash
+npx playwright install --with-deps chromium
+node tools/dev/capture-inspector.mjs
+```
+
+Screenshots and WebM go to `/tmp/refract-media`; `REFRACT_CAPTURE_DIR` overrides it. The script uses
+`/tmp/refract-stack-results.json` to select the recordings created by the smoke. The demo's 30-day
+baseline and 14-day candidate are deliberate policy fixtures. Tokens, durations and cost are synthetic
+measurements; the four-dimensional embedding fixture uses lexical indicators to test model plumbing.
+Replace the asset files only after inspecting the captures. Clean up the disposable stack with:
+
+```bash
+docker compose -p refract-smoke -f tests/integration/compose.yml down -v
+```
