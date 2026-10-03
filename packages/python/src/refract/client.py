@@ -31,8 +31,8 @@ class RefractClient:
     def request(
         self, path: str, body: Any = None, *, method: str | None = None, timeout: float = 35
     ) -> Any:
-        if not path.startswith("/v1/"):
-            raise ValueError("request path must start with /v1/")
+        if not path.startswith(("/v1/", "/scim/v2/")):
+            raise ValueError("request path must start with /v1/ or /scim/v2/")
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = "Bearer " + self.api_key

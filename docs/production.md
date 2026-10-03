@@ -131,7 +131,7 @@ workload credential chain when explicit keys are omitted. The external bucket mu
 Delivery uses a durable database outbox, 120-second leases, 30-second HTTP timeouts and capped retry
 backoff. It is **at least once**: webhook consumers must deduplicate `x-refract-delivery-id` and validate
 `x-refract-signature` (`sha256=` plus the HMAC-SHA256 hex digest of the exact request body). Envelopes
-contain `id`, `scope`, `operation`, `run_id`, and the stored `payload` string. With encryption enabled,
+contain `id`, `version`, `scope`, `operation`, `run_id`, and the stored `payload` string. With encryption enabled,
 that string remains encrypted; this is not an `.rfr` export. S3 stores the same payload at
 `bucket/organization/project/environment/sha256(run_id).json`; DELETE jobs remove retained objects.
 Do not assume total ordering across concurrent workers. Drain pending jobs before removing a target.
@@ -158,7 +158,7 @@ CI supplies PostgreSQL for that test. The normal suite explicitly skips it witho
 rollout, test backup restore and upgrades, TLS/DNS, your real S3/webhook destination, provider credentials,
 traffic limits and shutdown behavior in your environment. These checks do not establish an uptime SLA
 or compliance certification. Shared rate limits, OIDC bearer authentication, subject provisioning, managed keys and audit export/expiry
-are implemented. Browser PKCE login, keyring rotation and optional PostgreSQL row-level security are implemented and
+are implemented. Persistent browser PKCE sessions, SCIM user/group synchronization, keyring rotation and optional PostgreSQL row-level security are implemented and
 covered by local tests. See [backup and recovery](usage/recovery.md) for repeatable deployment rehearsals. Transport/database credentials and backup lifecycle remain deployment responsibilities.
 
 The API supports recorded playback, prefix forks and model reruns through operator-owned
@@ -176,7 +176,8 @@ provider credentials and infrastructure remain deployment acceptance checks.
 The Caddy profile uses an [HTTP/2 cleartext upstream](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
 on the private service network so HTTPS gRPC clients reach the same native receiver. Permit controlled
 HTTPS egress to JWKS and workload credential endpoints when enabling those integrations; the default
-internal network blocks outbound traffic. Browser token exchange also requires identity-provider CORS.
+internal network blocks outbound traffic. Server-side code exchange and session refresh require controlled egress to the configured token endpoint.
+The browser receives only an HttpOnly session cookie; identity-provider token-endpoint CORS is unnecessary.
 
 ## Embedding services and index capacity
 

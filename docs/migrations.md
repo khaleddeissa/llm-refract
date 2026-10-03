@@ -16,6 +16,12 @@ the server listens. SQLx records versions/checksums in `_sqlx_migrations` and re
 - `0003_service_controls.sql`: shared rate buckets, encrypted vectors and outbox lease tokens.
 - `0004_identities.sql`: managed key digests and provisioned OIDC subjects.
 - `0005_trace_assembly.sql`: durable scoped trace/span assembly.
+- `0006_embedding_jobs.sql`: project embedding settings and durable generation jobs.
+- `0007_vector_generations.sql`: shared index invalidation generations.
+- `0008_delivery_versions.sql`: monotonic webhook/object delivery versions.
+- `0009_telemetry.sql`: scoped OTLP log and metric records.
+- `0010_provisioning.sql`: encrypted SCIM directories with transactional role synchronization.
+- `0011_browser_sessions.sql`: encrypted pending logins and persistent refresh sessions.
 
 The optional PostgreSQL RLS policy is deployment configuration in `deploy/production/row-security.sql`;
 apply it after migrations with a separate restricted runtime role.
@@ -64,4 +70,4 @@ rotation plus graceful and forced shutdown. Run `make test-recovery` after build
 Migration `0008_delivery_versions.sql` assigns monotonic delivery versions independently of wall
 clocks. Counters survive payload retention, while inbox tombstones reject delayed older messages.
 After upgrading an RLS deployment, reapply `deploy/production/row-security.sql` before starting its
-restricted runtime. The runtime verifies all twelve scoped tables have forced row security.
+restricted runtime. The runtime verifies all fourteen scoped tables have forced row security.

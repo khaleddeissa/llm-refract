@@ -81,8 +81,13 @@ source = unpack(Path("original.rfr").read_bytes())
 executors = ExecutorRegistry()
 executors.register_provider(OpenAI(), provider="openai", api="chat")
 executors.reuse_recorded("retrieval", "decision")  # explicit reuse; no retrieval/tool side effects
-branch = rerun(source, executors, from_event=source["events"][0]["id"],
-              model="your-candidate-model", allow_live=True)
+branch = rerun(
+    source,
+    executors,
+    from_event=source["events"][0]["id"],
+    model="your-candidate-model",
+    allow_live=True,
+)
 ```
 
 Built-ins accept OpenAI/Azure Chat and Responses, Anthropic Messages, Gemini/Vertex through
@@ -146,6 +151,7 @@ provider usage; retrying is an explicit new execution, not a safe automatic retr
 
 ```python
 from refract import RefractClient
+
 client = RefractClient(api_key="your-writer-key")
 print(client.generation_models())
 branch = client.rerun("RUN_ID", profile="candidate", from_event="evt_answer", allow_live=True)

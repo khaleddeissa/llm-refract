@@ -69,9 +69,9 @@ MCP and the UI call the same API. Skills provide operating instructions; they ar
 - **Regression datasets:** grade outputs with the offline heuristic or a custom model grader and apply
   cost/token/latency budgets across named cases. Integrate results into CI or MCP investigations.
 - **Service operation:** batch exporters fail open, retry and optionally spool to disk. The service
-  supports scoped managed keys, browser SSO/OIDC, audit lifecycle, encryption rotation, shared quotas and optional PostgreSQL row security.
+  supports scoped managed keys, persistent browser SSO/OIDC, SCIM user/group provisioning, audit lifecycle, encryption rotation, shared quotas and optional PostgreSQL row security.
 
-[Native OTLP](docs/usage/otel.md) · [SSO and service controls](docs/usage/service-controls.md) · [Pricing](docs/usage/pricing.md) ·
+[OTLP traces, logs and metrics](docs/usage/otel.md) · [SSO and service controls](docs/usage/service-controls.md) · [Pricing](docs/usage/pricing.md) ·
 [Provider coverage](docs/usage/providers.md) · [Instrumentation](docs/usage/python.md) · [Metrics](docs/usage/metrics.md) ·
 [Rerun](docs/usage/rerun.md) · [Evaluation](docs/usage/evaluation.md) · [Operation](docs/production.md)
 

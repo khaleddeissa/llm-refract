@@ -20,7 +20,7 @@ that fits your application; a running server is optional for file recording and 
 | [Metrics](usage/metrics.md)       | Interpret token/cost/latency measurements and completeness                          |
 | [Rerun](usage/rerun.md)           | Execute explicit continuations with model replacements and approvals                |
 | [Evaluation](usage/evaluation.md) | Compare semantics and evaluate datasets with budgets/custom graders                 |
-| [OpenTelemetry](usage/otel.md)    | Native HTTP/protobuf/gRPC trace ingestion and SDK bridges                           |
+| [OpenTelemetry](usage/otel.md)    | HTTP/protobuf/gRPC traces, logs, metrics and SDK bridges                            |
 | [Artifacts](usage/artifacts.md)   | Read, validate, convert and integrate `.rfr`                                        |
 | [Production](production.md)       | Understand deployment boundaries and recording tradeoffs                            |
 | [Development](development.md)     | Install tools, run checks and build packages locally                                |

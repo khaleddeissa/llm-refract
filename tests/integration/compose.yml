@@ -1,0 +1,43 @@
+# Disposable local fixtures; never use these example credentials in a deployment.
+services:
+  provider:
+    image: node:24-bookworm-slim
+    command: ["node", "/fixtures/mock_services.mjs"]
+    volumes:
+      - ./mock_services.mjs:/fixtures/mock_services.mjs:ro
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_PASSWORD: local-smoke-password
+      POSTGRES_DB: refract
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d refract"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  server:
+    image: ${REFRACT_TEST_IMAGE:-llm-refract:0.1.4-final}
+    ports:
+      - "127.0.0.1:${REFRACT_TEST_PORT:-51098}:8000"
+    environment:
+      REFRACT_DATABASE_URL: postgres://postgres:local-smoke-password@postgres:5432/refract
+      REFRACT_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      REFRACT_OIDC_ISSUER: https://local.identity.invalid
+      REFRACT_OIDC_AUDIENCE: refract
+      REFRACT_OIDC_JWKS_URL: https://local.identity.invalid/keys
+      REFRACT_API_KEYS: '[{"id":"smoke-admin","key":"local-smoke-admin-key-32-characters","role":"admin","organization":"local","project":"default","environment":"development"}]'
+      REFRACT_EMBEDDING_PROFILES: '[{"id":"local-demo","label":"Local demo embeddings","protocol":"openai","endpoint":"http://provider:8080/embeddings","model":"lexical-fixture-v1","dimensions":4}]'
+      REFRACT_GENERATION_PROFILES: '[{"id":"local-demo","label":"Local demo model","protocol":"openai_chat","endpoint":"http://provider:8080/chat","model":"local-demo-model","grading_rubric":"Detect changes in the return-policy deadline."}]'
+      REFRACT_WEBHOOK_URL: http://provider:8080/webhook
+      REFRACT_WEBHOOK_SECRET: local-smoke-webhook-secret-32-bytes
+      REFRACT_S3_ENDPOINT: http://provider:8080
+      REFRACT_S3_BUCKET: smoke-bucket
+      REFRACT_S3_REGION: us-east-1
+      REFRACT_S3_ACCESS_KEY: local-access-key
+      REFRACT_S3_SECRET_KEY: local-secret-key
+      REFRACT_S3_SESSION_TOKEN: local-session-token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      provider:
+        condition: service_started

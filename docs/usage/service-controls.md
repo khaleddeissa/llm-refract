@@ -1,6 +1,6 @@
 # Shared service controls
 
-The 0.1.4 source adds database-backed controls to the existing organization/project/environment scope.
+Refract provides database-backed controls within each organization/project/environment scope.
 Use the same PostgreSQL database for replicas. Local SQLite remains supported. These interfaces require
 normal authentication and are included in request auditing.
 
@@ -104,13 +104,64 @@ REFRACT_OIDC_SCOPES='openid profile'
 REFRACT_OIDC_AUTH_PARAMS='{"audience":"refract-api"}'
 ```
 
-Register a public browser client with the exact redirect URI and allow its origin at the token endpoint.
-Do not configure a client secret in the browser. Tokens must be JWT access tokens for the configured API
-audience, with a provisioned subject. `/v1/auth/config` exposes only public login configuration. The
-Inspector checks state, issuer/client/redirect binding and a ten-minute callback expiry. PKCE state lives
-in session storage until consumed; the access token lives only in tab memory. Reloading requires sign-in;
-there is no persistent refresh token. Your identity provider owns MFA, session termination and user
-lifecycle. Provisioning is an admin API, not an automatic SCIM/group synchronization service.
+Register the exact redirect URI with an OIDC client supporting authorization code and S256 PKCE.
+Token exchange happens on the Refract server; the provider does not need browser CORS. For a
+confidential client, configure `REFRACT_OIDC_CLIENT_SECRET_FILE`. Request `offline_access` in
+`REFRACT_OIDC_SCOPES` when your issuer requires it to issue refresh tokens. JWT access tokens must
+have the configured API audience and a provisioned subject. Storage encryption and HTTPS are required
+for browser SSO, including local SSO deployments behind a local TLS proxy.
+
+`POST /v1/auth/start` creates a ten-minute, one-use login transaction and an HttpOnly binding cookie.
+`POST /v1/auth/complete` exchanges the returned code using the server's PKCE verifier and validates
+the JWT. Issuer, client, redirect, state and cookie binding must match. Tokens are encrypted in SQL;
+the browser receives only a random `__Host-refract.session` cookie with `Secure`, `HttpOnly`,
+`SameSite=Lax` and `Path=/`. SQL stores its SHA-256 digest. Tokens never enter browser storage or JS.
+
+The session survives reloads and server restarts, expires after seven days or 24 hours idle, and
+refreshes access tokens through a database lease shared by replicas. Rotated refresh tokens replace
+the previous encrypted value. An issuer that does not return refresh tokens requires sign-in when
+the access token expires. Refresh failure or a changed token subject invalidates the session.
+Cookie-authenticated writes require the exact configured browser origin. `POST /v1/auth/logout`
+deletes the server session and clears its cookies; this is available through **Sign out of SSO**.
+Provisioning deactivation is checked on every request. The identity provider controls MFA and its
+own browser session. API keys entered in the Inspector remain tab-memory credentials.
+
+## SCIM users and groups
+
+Configure your identity provider's SCIM base URL as `https://traces.example.com/scim/v2` and use a
+scoped administrator key. Users and Groups support create, read, list, replace, patch and delete.
+`/scim/v2/ServiceProviderConfig` advertises supported operations. Map `externalId` to the immutable
+OIDC **subject (`sub`)**, not a mutable email address; `userName` is the searchable display/login name.
+A subject belongs to one Refract scope. Directory changes and authorization bindings commit together.
+
+```bash
+# Optional exact group display-name -> role mappings. Configure identically on every replica.
+REFRACT_SCIM_GROUP_ROLES='{"Refract Readers":"reader","Refract Editors":"writer","Refract Admins":"admin"}'
+```
+
+With mappings configured, an active user must belong to a mapped group. The highest mapped role wins;
+removing the last mapped membership revokes access. Without mappings, active provisioned users receive
+reader access. Caller-supplied user roles never grant privileges. User deletion/deactivation revokes
+access immediately, including existing browser sessions. Group membership changes recompute bindings
+atomically. After changing operator mappings, trigger the identity provider's group synchronization.
+
+```http
+POST /scim/v2/Users
+Authorization: Bearer ADMIN_KEY
+Content-Type: application/scim+json
+
+{"schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],"userName":"ada@example.com","externalId":"OIDC_SUBJECT","active":true}
+```
+
+Create a Group with `displayName` and `members:[{"value":"RETURNED_USER_ID"}]`. Patch supports
+`add`, `replace`, `remove`, whole-attribute updates and `members[value eq "USER_ID"]` removal.
+Lists use one-based `startIndex`, `count` up to 1,000, and equality filters on `id`, `userName`,
+`externalId`, `displayName` or `active`. Unsupported filters fail explicitly. Group nesting, password
+management, bulk requests, sorting and ETags are not advertised. A scoped directory holds up to 10,000
+users and 10,000 groups within 16 MiB; individual resources are bounded to 1 MiB. Directory profiles
+use configured encryption. See the runnable [SCIM example](../../examples/identity/README.md).
+Protocol references: [SCIM schemas](https://www.rfc-editor.org/rfc/rfc7643) and
+[SCIM protocol](https://www.rfc-editor.org/rfc/rfc7644).
 
 ## Encryption rotation
 
@@ -122,7 +173,7 @@ Keep the old key while deploying the new ring to every replica, then set the sam
 `POST /v1/admin/encryption/rotate` with `{"limit":100}` re-encrypts up to that number of rows **per payload
 table** in the administrator's scope. Repeat until `rotated` is zero. Alternatively set
 `REFRACT_ENCRYPTION_ROTATE_BATCH=100` for the background worker to rotate all scopes incrementally. It
-covers recordings, embeddings and pending trace spans, and requeues downstream object updates. Startup
+covers recordings, embeddings, pending trace spans, telemetry, SCIM profiles and browser sessions, and requeues downstream object updates. Startup
 checks all represented key IDs and rejects missing or incorrect keys. Retain old keys until external
 objects, exports and historical backups using them have expired or been migrated. Refract does not
 rotate database passwords, ingress certificates or a cloud KMS key for you.
@@ -139,7 +190,7 @@ Use a separate restricted runtime role in addition to the migration/maintenance 
 
 The server refuses a superuser/BYPASSRLS runtime or missing forced RLS policies. Each pooled connection
 gets organization/project/environment settings on checkout, with transaction-local settings inside
-transactions. Eight tenant-data tables use `USING` and `WITH CHECK`; authentication registries remain
+transactions. Fourteen tenant-data tables use `USING` and `WITH CHECK`; authentication registries remain
 global because identifying a token precedes knowing its scope. Their admin operations still enforce
 scope. Migration/worker credentials are privileged and must be protected separately. RLS guards omitted
 application filters, not arbitrary SQL execution using a compromised application credential that can

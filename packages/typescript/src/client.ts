@@ -62,8 +62,8 @@ export class RefractClient {
     method?: string,
     timeoutMs = 35_000,
   ): Promise<T> {
-    if (!path.startsWith("/v1/"))
-      throw new Error("Request path must start with /v1/");
+    if (!path.startsWith("/v1/") && !path.startsWith("/scim/v2/"))
+      throw new Error("Request path must start with /v1/ or /scim/v2/");
     const response = await fetch(this.url + path, {
       method: method ?? (body === undefined ? "GET" : "POST"),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),

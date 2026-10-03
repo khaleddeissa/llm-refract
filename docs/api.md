@@ -126,3 +126,14 @@ search only uses submitted/stored vectors.
   domain grading. Failures produce failing reports, never implied equivalence.
 
 See [model execution](usage/rerun.md) for profiles, consent, provider protocols and timeout/size budgets.
+
+## Telemetry and identity lifecycle
+
+- `POST /v1/logs`, `POST /v1/metrics`: OTLP JSON/protobuf, writer role; equivalent native gRPC services share the API port.
+- `GET /v1/telemetry`: reader query with `kind`, optional log `trace_id`, `limit`, `offset`.
+- `POST /v1/auth/start`, `/v1/auth/complete`, `/v1/auth/logout`: same-origin browser session lifecycle.
+- `/scim/v2/Users`, `/scim/v2/Groups`: scoped admin SCIM collections; `GET`/`POST` on collections and `GET`/`PUT`/`PATCH`/`DELETE` on IDs.
+- `GET /scim/v2/ServiceProviderConfig`: scoped admin discovery of supported SCIM operations.
+
+See [telemetry](usage/otel.md#logs-and-metrics) and [identity configuration](usage/service-controls.md#browser-sso)
+for payloads, session expiry, group mappings, encryption and production configuration.
