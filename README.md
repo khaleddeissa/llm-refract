@@ -11,6 +11,8 @@ Record executions. Inspect their graph. Rerun with new models or code. Compare b
 [![CI](https://img.shields.io/github/actions/workflow/status/khaleddeissa/llm-refract/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/khaleddeissa/llm-refract/actions/workflows/ci.yml)
 [![Security](https://img.shields.io/badge/Security-CodeQL%20%26%20Dependency%20Review-2EA44F?style=for-the-badge&logo=github&logoColor=white)](https://github.com/khaleddeissa/llm-refract/actions/workflows/security.yml)
 [![Latest release](https://img.shields.io/github/v/release/khaleddeissa/llm-refract?display_name=tag&sort=semver&style=for-the-badge)](https://github.com/khaleddeissa/llm-refract/releases)
+[![PyPI downloads](https://img.shields.io/pepy/dt/llm-refract?style=for-the-badge&label=PyPI%20downloads&logo=pypi&logoColor=white)](https://pepy.tech/projects/llm-refract)
+[![npm downloads](https://img.shields.io/npm/dm/@llm-refract/sdk?style=for-the-badge&label=npm%20downloads&logo=npm&logoColor=white)](https://www.npmjs.com/package/@llm-refract/sdk)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Rust](https://img.shields.io/badge/Rust-2024-000000?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-SDK-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](packages/typescript)
