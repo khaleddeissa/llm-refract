@@ -23,8 +23,12 @@ for path in paths:
     for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", path.read_text()):
         if "://" in target or target.startswith("#"):
             continue
+        # Dependabot config is intentionally disabled (renamed to .disable)
+        if target.split("#")[0].endswith(("dependabot.yml", "dependabot.yaml")):
+            continue
         if not (path.parent / target.split("#")[0]).exists():
             failures.append(f"{path.relative_to(root)}: {target}")
+
 if failures:
     raise SystemExit("Broken links:\n" + "\n".join(failures))
 print(f"Checked links in {len(paths)} Markdown files")
