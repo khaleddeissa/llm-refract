@@ -1553,6 +1553,7 @@ litellm = [
 ]
 mcp = [
     { name = "mcp" },
+    { name = "pyjwt" },
 ]
 openai = [
     { name = "openai" },
@@ -1572,6 +1573,7 @@ requires-dist = [
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.26,<2" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.0" },
     { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.30" },
+    { name = "pyjwt", marker = "extra == 'mcp'", specifier = ">=2.15.0" },
 ]
 provides-extras = ["google", "bedrock", "openai", "anthropic", "langchain", "langgraph", "litellm", "otel", "mcp"]
 

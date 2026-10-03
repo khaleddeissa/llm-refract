@@ -25,6 +25,7 @@ jobs:
               - "crates/**"
               - "packages/**"
               - "tests/**"
+              - "examples/**"
               - "Dockerfile"
               - "docker-compose.yml"
               - "deploy/**"
@@ -33,6 +34,8 @@ jobs:
               - "rust-toolchain.toml"
               - "package.json"
               - "package-lock.json"
+              - "pyproject.toml"
+              - "uv.lock"
               - ".github/workflows/test.yml"
 
       - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
@@ -70,6 +73,22 @@ jobs:
 
       - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
         run: make test-integration test-interfaces test-e2e
+
+      - if: steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch'
+        name: Integrated model, identity, telemetry and delivery smoke
+        run: |
+          docker image tag "$(docker compose images -q refract)" llm-refract:ci
+          export REFRACT_TEST_IMAGE=llm-refract:ci
+          docker compose -p refract-smoke -f tests/integration/compose.yml up -d --wait
+          uv run --locked --all-packages --all-extras python tests/integration/full_stack.py
+          docker compose -p refract-smoke -f tests/integration/compose.yml exec -T provider node -e 'fetch("http://localhost:8080/counts").then(r=>r.json()).then(c=>{console.log(c);if(!c.webhooks || !c.objects) process.exit(1)}).catch(()=>process.exit(1))'
+          docker compose -p refract-smoke -f tests/integration/compose.yml restart server
+          docker compose -p refract-smoke -f tests/integration/compose.yml up -d --wait
+          uv run --locked --all-packages --all-extras python tests/integration/full_stack.py --verify-restart
+
+      - if: always() && (steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch')
+        name: Clean up the disposable integrated stack
+        run: docker compose -p refract-smoke -f tests/integration/compose.yml down -v
 
       - if: always() && (steps.changes.outputs.relevant == 'true' || github.event_name == 'workflow_dispatch')
         run: docker compose logs && docker compose down

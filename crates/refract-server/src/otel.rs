@@ -18,6 +18,33 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 
 const MAX_BODY: usize = 16 * 1024 * 1024;
+/// Prost's metric oneofs otherwise silently discard OTLP string-encoded int64 values.
+pub(super) fn decode_json<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> ApiResult<T> {
+    fn normalize(value: &mut Value) -> ApiResult<()> {
+        match value {
+            Value::Object(object) => {
+                for (key, value) in object {
+                    match (key.as_str(), value.as_str()) {
+                        ("asInt", Some(text)) => {
+                            *value = json!(text.parse::<i64>().map_err(invalid)?)
+                        }
+                        _ => normalize(value)?,
+                    }
+                }
+            }
+            Value::Array(array) => {
+                for value in array {
+                    normalize(value)?;
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+    let mut value: Value = serde_json::from_slice(bytes).map_err(invalid)?;
+    normalize(&mut value)?;
+    serde_json::from_value(value).map_err(invalid)
+}
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -257,7 +284,7 @@ pub(super) async fn http(
         .unwrap_or("");
     let request = match content_type {
         "application/x-protobuf" => ExportTraceServiceRequest::decode(bytes).map_err(invalid)?,
-        "application/json" => serde_json::from_slice(&bytes).map_err(invalid)?,
+        "application/json" => decode_json(&bytes)?,
         _ => {
             return Err(ApiError(
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,

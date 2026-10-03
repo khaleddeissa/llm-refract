@@ -29,7 +29,7 @@ langchain = ["langchain-core>=0.3"]
 langgraph = ["langgraph>=1.0"]
 litellm = ["litellm>=1.63.8"]
 otel = ["opentelemetry-sdk>=1.30"]
-mcp = ["mcp>=1.26,<2"]
+mcp = ["mcp>=1.26,<2", "PyJWT>=2.15.0"]
 
 [project.scripts]
 refract-mcp = "refract_mcp.server:main"

@@ -185,3 +185,36 @@ async fn native_grpc_logs_and_metrics_clients_require_auth() {
     metrics.export(request).await.unwrap();
     task.abort();
 }
+
+#[tokio::test]
+async fn standard_otlp_json_preserves_string_integers_and_base64_bytes() {
+    let store = Store::open("sqlite::memory:").await.unwrap();
+    let app = router(store.clone());
+    let metric = json!({"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"requests","sum":{"aggregationTemporality":2,"isMonotonic":true,"dataPoints":[{"timeUnixNano":"123","asInt":"9223372036854775807","attributes":[{"key":"attempt","value":{"intValue":"3"}}]}]}}]}]}]});
+    assert_eq!(
+        crate::tests::request(&app, "POST", "/v1/metrics", None, metric)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let records = store.telemetry("metrics", "", 10, 0).await.unwrap();
+    assert_eq!(
+        records[0].payload["metric"]["sum"]["dataPoints"][0]["asInt"],
+        json!(i64::MAX)
+    );
+    assert_eq!(
+        records[0].payload["metric"]["sum"]["dataPoints"][0]["attributes"]["attempt"],
+        3
+    );
+    let logs = json!({"resourceLogs":[{"scopeLogs":[{"logRecords":[{"timeUnixNano":"123","body":{"bytesValue":"aGVsbG8="}}]}]}]});
+    assert_eq!(
+        crate::tests::request(&app, "POST", "/v1/logs", None, logs)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        store.telemetry("logs", "", 10, 0).await.unwrap()[0].payload["body"],
+        "68656c6c6f"
+    );
+}
