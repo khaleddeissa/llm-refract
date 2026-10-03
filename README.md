@@ -24,7 +24,7 @@ Record executions. Inspect their graph. Rerun with new models or code. Compare b
 
 [![Current Inspector: execution metrics and causal graph](assets/Inspector_Overview.PNG)](assets/Inspector_Demo.webm)
 
-[Watch the Inspector demo (WebM)](assets/Inspector_Demo.webm) · [Inspector guide](docs/usage/inspector.md)
+[Watch the Inspector demo (WebM)](https://github.com/user-attachments/assets/b179a935-62f3-45a5-80b6-ee5ef665dc50) · [Inspector guide](docs/usage/inspector.md)
 
 ## AI executions you can inspect, share and compare
 
