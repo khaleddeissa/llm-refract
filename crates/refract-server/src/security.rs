@@ -35,6 +35,7 @@ pub struct Security {
     pub retention: Option<Duration>,
     pub oidc: Option<crate::oidc::Oidc>,
     pub login: Option<crate::login::Login>,
+    pub scim_group_roles: std::collections::BTreeMap<String, String>,
 }
 impl Default for Security {
     fn default() -> Self {
@@ -44,6 +45,7 @@ impl Default for Security {
             retention: None,
             oidc: None,
             login: None,
+            scim_group_roles: Default::default(),
         }
     }
 }
@@ -98,6 +100,16 @@ impl Security {
             None => Self::default(),
         };
         security.oidc = crate::oidc::Oidc::from_env()?;
+        security.scim_group_roles = serde_json::from_str(
+            &secret("REFRACT_SCIM_GROUP_ROLES")?.unwrap_or_else(|| "{}".into()),
+        )?;
+        ensure!(
+            security
+                .scim_group_roles
+                .values()
+                .all(|role| ["reader", "writer", "admin"].contains(&role.as_str())),
+            "invalid SCIM group role"
+        );
         security.login =
             crate::login::Login::from_env(security.oidc.as_ref().map(|o| o.issuer.as_str()))?;
         ensure!(

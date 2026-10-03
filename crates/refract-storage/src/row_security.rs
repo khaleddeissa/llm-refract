@@ -19,10 +19,10 @@ impl Store {
             superuser == 0 && bypass == 0,
             "runtime database role must not bypass row security"
         );
-        let (protected,):(i64,)=sqlx::query_as("SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=current_schema() AND c.relname IN ('runs','run_events','run_embeddings','audit_log','outbox','rate_buckets','trace_assemblies','trace_spans','project_embeddings','embedding_jobs','vector_generations','delivery_versions') AND c.relrowsecurity AND c.relforcerowsecurity")
+        let (protected,):(i64,)=sqlx::query_as("SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=current_schema() AND c.relname IN ('runs','run_events','run_embeddings','audit_log','outbox','rate_buckets','trace_assemblies','trace_spans','project_embeddings','embedding_jobs','vector_generations','delivery_versions','telemetry','scim_directories') AND c.relrowsecurity AND c.relforcerowsecurity")
             .fetch_one(&pool).await?;
         ensure!(
-            protected == 12,
+            protected == 14,
             "apply the row-security deployment SQL before starting the restricted runtime"
         );
         Ok(Self {

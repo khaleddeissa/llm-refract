@@ -4,10 +4,16 @@ pub use vector_index::VectorSearchMode;
 mod embedding_jobs;
 pub use embedding_jobs::{EmbeddingJob, EmbeddingSetting};
 mod identities;
+mod sessions;
+pub use sessions::SessionTokens;
+mod provisioning;
 mod rotation;
 mod row_security;
+mod telemetry;
+pub use provisioning::Directory;
 mod traces;
 pub use identities::{KeyMetadata, Principal};
+pub use telemetry::TelemetryRecord;
 pub use traces::TraceSpan;
 mod encryption;
 pub use controls::{Embedding, VectorMatch};
@@ -535,7 +541,7 @@ impl Store {
         Ok(())
     }
     pub async fn scopes(&self) -> Result<Vec<Scope>> {
-        let rows = sqlx::query("SELECT DISTINCT organization,project,environment FROM runs")
+        let rows = sqlx::query("SELECT organization,project,environment FROM runs UNION SELECT organization,project,environment FROM telemetry UNION SELECT organization,project,environment FROM scim_directories UNION SELECT organization,project,environment FROM browser_sessions")
             .fetch_all(&mut *self.connection().await?)
             .await?;
         rows.into_iter()
@@ -614,7 +620,7 @@ mod tests {
                 .fetch_one(&store.pool)
                 .await
                 .unwrap();
-        assert_eq!(versions, 8);
+        assert_eq!(versions, 11);
         store.pool.close().await;
         std::fs::remove_file(path).unwrap();
     }

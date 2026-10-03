@@ -173,4 +173,23 @@ export class RefractClient {
       130_000,
     );
   }
+  telemetry(
+    kind: "logs" | "metrics" = "logs",
+    options: { trace_id?: string; limit?: number; offset?: number } = {},
+  ): Promise<{
+    records: {
+      kind: string;
+      trace_id: string;
+      payload: Record<string, unknown>;
+    }[];
+    next_offset: number;
+  }> {
+    const query = new URLSearchParams({
+      kind,
+      ...Object.fromEntries(
+        Object.entries(options).map(([key, value]) => [key, String(value)]),
+      ),
+    });
+    return this.request(`/v1/telemetry?${query}`);
+  }
 }

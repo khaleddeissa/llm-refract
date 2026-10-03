@@ -1,3 +1,4 @@
+mod browser;
 mod controls;
 mod delivery;
 mod embeddings;
@@ -6,7 +7,9 @@ mod identity_api;
 pub mod login;
 pub mod oidc;
 mod otel;
+mod scim;
 pub mod security;
+mod telemetry;
 
 use axum::{
     Extension, Json, Router,
@@ -88,6 +91,18 @@ fn router_with_policy(
         .route("/v1/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/v1/ready", get(ready))
         .route("/v1/auth/config", get(login::config))
+        .route("/v1/auth/start", post(browser::start))
+        .route("/v1/auth/complete", post(browser::complete))
+        .route("/v1/auth/logout", post(browser::logout))
+        .route("/scim/v2/ServiceProviderConfig", get(scim::configuration))
+        .route("/scim/v2/{kind}", get(scim::list).post(scim::create))
+        .route(
+            "/scim/v2/{kind}/{id}",
+            get(scim::get)
+                .put(scim::replace)
+                .patch(scim::patch)
+                .delete(scim::delete),
+        )
         .route(
             "/v1/auth/me",
             get(
@@ -98,6 +113,17 @@ fn router_with_policy(
         )
         .route("/v1/runs", get(list).post(create))
         .route("/v1/traces", post(otel::http))
+        .route("/v1/logs", post(telemetry::logs_http))
+        .route("/v1/metrics", post(telemetry::metrics_http))
+        .route("/v1/telemetry", get(telemetry::list))
+        .route_service(
+            "/opentelemetry.proto.collector.logs.v1.LogsService/Export",
+            telemetry::logs_grpc(),
+        )
+        .route_service(
+            "/opentelemetry.proto.collector.metrics.v1.MetricsService/Export",
+            telemetry::metrics_grpc(),
+        )
         .route_service(
             "/opentelemetry.proto.collector.trace.v1.TraceService/Export",
             otel::grpc(),
@@ -154,7 +180,12 @@ async fn authorize(State(state): State<AppState>, mut request: Request, next: Ne
     let path = request.uri().path().to_owned();
     if matches!(
         path.as_str(),
-        "/v1/health" | "/v1/ready" | "/v1/auth/config"
+        "/v1/health"
+            | "/v1/ready"
+            | "/v1/auth/config"
+            | "/v1/auth/start"
+            | "/v1/auth/complete"
+            | "/v1/auth/logout"
     ) {
         return next.run(request).await;
     }
@@ -163,11 +194,22 @@ async fn authorize(State(state): State<AppState>, mut request: Request, next: Ne
         .get("authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
-    let identity = match state
-        .security
-        .authenticate_store(&state.store, bearer)
-        .await
+    let identity_result = if bearer.is_none()
+        && browser::cookie(request.headers(), "__Host-refract.session").is_some()
     {
+        if !matches!(*request.method(), Method::GET | Method::HEAD)
+            && let Err(error) = browser::origin(&state, request.headers())
+        {
+            return error.into_response();
+        }
+        browser::authenticate(&state, request.headers()).await
+    } else {
+        state
+            .security
+            .authenticate_store(&state.store, bearer)
+            .await
+    };
+    let identity = match identity_result {
         Ok(identity) => identity,
         Err(error) => return internal(error).into_response(),
     };
@@ -190,7 +232,8 @@ async fn authorize(State(state): State<AppState>, mut request: Request, next: Ne
         || path == "/v1/diff"
         || path == "/v1/eval"
         || path.ends_with("/replay");
-    let forbidden = path.starts_with("/v1/admin/") && identity.role != Role::Admin
+    let forbidden = (path.starts_with("/v1/admin/") || path.starts_with("/scim/"))
+        && identity.role != Role::Admin
         || !readonly && identity.role == Role::Reader;
     let limited = match store
         .allow_request(&identity.id, state.security.requests_per_minute)
@@ -479,23 +522,40 @@ async fn evaluate(
     if req.pairs.is_empty() || req.pairs.len() > 100 {
         return Err(invalid("evaluation requires 1..100 pairs"));
     }
-    let mut results = vec![];
-    let mut passed = 0;
-    for pair in req.pairs {
-        let report = state
-            .generation
-            .compare(
-                s.scope(),
-                &load(&s, &pair.left).await?,
-                &load(&s, &pair.right).await?,
-                &req.options,
-                req.grader.as_deref(),
-                req.allow_live,
-            )
-            .await?;
-        passed += usize::from(report.passed);
-        results.push(json!({"name":pair.name,"left":pair.left,"right":pair.right,"report":report}));
+    // Validate every referenced recording before the first external grading call.
+    for pair in &req.pairs {
+        load(&s, &pair.left).await?;
+        load(&s, &pair.right).await?;
     }
+    let (results, passed) = tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        let mut results = vec![];
+        let mut passed = 0;
+        for pair in req.pairs {
+            let report = state
+                .generation
+                .compare(
+                    s.scope(),
+                    &load(&s, &pair.left).await?,
+                    &load(&s, &pair.right).await?,
+                    &req.options,
+                    req.grader.as_deref(),
+                    req.allow_live,
+                )
+                .await?;
+            passed += usize::from(report.passed);
+            results.push(
+                json!({"name":pair.name,"left":pair.left,"right":pair.right,"report":report}),
+            );
+        }
+        Ok::<_, ApiError>((results, passed))
+    })
+    .await
+    .map_err(|_| {
+        ApiError(
+            StatusCode::GATEWAY_TIMEOUT,
+            "evaluation exceeded 120 seconds".into(),
+        )
+    })??;
     Ok(Json(
         json!({"passed":passed==results.len(),"total":results.len(),"regressions":results.len()-passed,"equivalent":passed,"results":results}),
     ))
@@ -527,7 +587,7 @@ async fn retention(
     }
     let before = chrono::Utc::now() - chrono::Duration::days(i64::from(req.days));
     Ok(Json(
-        json!({"deleted":s.retain_since(before).await.map_err(internal)?,"before":before}),
+        json!({"deleted":s.retain_since(before).await.map_err(internal)?,"telemetry_deleted":s.expire_telemetry(before).await.map_err(internal)?,"before":before}),
     ))
 }
 async fn outbox(Extension(s): Extension<Store>) -> ApiResult<Json<Value>> {
@@ -569,6 +629,10 @@ pub async fn serve() -> anyhow::Result<()> {
         },
     )
     .await?;
+    anyhow::ensure!(
+        security.login.is_none() || store.has_encryption(),
+        "browser SSO requires storage encryption"
+    );
     let rotation = std::env::var("REFRACT_ENCRYPTION_ROTATE_BATCH")
         .ok()
         .map(|v| v.parse::<i64>())
@@ -626,6 +690,9 @@ pub async fn serve() -> anyhow::Result<()> {
                         Ok(scopes) => {
                             for scope in scopes {
                                 let scoped = worker_store.scoped(scope);
+                                if scoped.expire_telemetry(before).await.is_err() {
+                                    eprintln!("telemetry retention failed");
+                                }
                                 match scoped.retain_since(before).await {
                                     Ok(deleted) if deleted > 0 => {
                                         let _ = scoped

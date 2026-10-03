@@ -25,6 +25,8 @@ dev = [
 
 [tool.uv]
 package = false
+# Security floor for transitive JWT users (including the MCP extra).
+constraint-dependencies = ["pyjwt>=2.15.0"]
 
 [tool.uv.workspace]
 members = ["packages/python"]

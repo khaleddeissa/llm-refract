@@ -127,3 +127,13 @@ class RefractClient:
             },
             timeout=130,
         )
+
+    def telemetry(
+        self, *, kind: str = "logs", trace_id: str = "", limit: int = 50, offset: int = 0
+    ) -> dict:
+        return self.request(
+            "/v1/telemetry?"
+            + urllib.parse.urlencode(
+                {"kind": kind, "trace_id": trace_id, "limit": limit, "offset": offset}
+            )
+        )

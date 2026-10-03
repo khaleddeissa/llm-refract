@@ -157,7 +157,11 @@ application configuration. This does not require a LiteLLM dependency inside the
 ## Node LangChain and LangGraph callbacks
 
 ```typescript
-import { refract, langchainHandler, instrumentLangChainModel } from "@llm-refract/sdk";
+import {
+  refract,
+  langchainHandler,
+  instrumentLangChainModel,
+} from "@llm-refract/sdk";
 
 const restore = instrumentLangChainModel(chatModel); // your configured LangChain chat/LLM model
 try {

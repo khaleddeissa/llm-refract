@@ -35,8 +35,9 @@ language tools; it does not implement runtime behavior.
 
 The former `proto/` directory contained an unused draft Protobuf envelope. No generated code, gRPC
 service or active caller consumed it, so it and the empty protocol re-export crate were removed.
-JSON Schemas in `spec/` define today's wire contract. A future working gRPC transport should introduce
-its `.proto` files and generation tests together, rather than shipping unused transport scaffolding.
+JSON Schemas in `spec/` define the execution/artifact wire contract. Native OTLP gRPC uses the
+standard generated types from `opentelemetry-proto`; transport tests live with the Rust server.
+The repository does not need a duplicate copy of those upstream protocol definitions.
 
 The former top-level collector uploader is now `examples/http/ingest.py`. The actual native collector
 remains in Rust. The manual provider adapter belongs to the Python SDK and moved there. Tests,

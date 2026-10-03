@@ -1,4 +1,4 @@
-//! Public-client OIDC configuration; the browser uses authorization code + PKCE.
+//! OIDC configuration for server-managed authorization code + PKCE sessions.
 use anyhow::{Result, ensure};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -12,6 +12,8 @@ pub struct Login {
     pub redirect_uri: String,
     pub scope: String,
     pub authorization_params: BTreeMap<String, String>,
+    #[serde(skip)]
+    pub client_secret: Option<String>,
 }
 fn required(name: &str) -> Result<String> {
     crate::security::secret(name)?
@@ -59,6 +61,7 @@ impl Login {
             scope: crate::security::secret("REFRACT_OIDC_SCOPES")?
                 .unwrap_or("openid profile".into()),
             authorization_params,
+            client_secret: crate::security::secret("REFRACT_OIDC_CLIENT_SECRET")?,
         }))
     }
 }

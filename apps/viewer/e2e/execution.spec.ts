@@ -137,63 +137,65 @@ test("API key enables authenticated search and is forgotten on reload", async ({
   await expect(page.getByRole("alert")).toContainText("401");
 });
 
-test("SSO exchanges a PKCE code and forgets the access token on reload", async ({
+test("SSO restores a cookie session after reload and clears it on logout", async ({
   page,
   baseURL,
 }) => {
   const redirect = new URL("/", baseURL!).toString();
-  let challenge = "";
-  let exchanged = false;
+  let signedIn = false;
+  let exchanges = 0;
   await page.route("**/v1/auth/config", (route) =>
     route.fulfill({
       json: {
         enabled: true,
         configuration: {
           issuer: "https://identity.invalid",
-          client_id: "fixture-inspector",
-          authorization_endpoint: "https://identity.invalid/authorize",
-          token_endpoint: "https://identity.invalid/token",
+          client_id: "inspector",
           redirect_uri: redirect,
-          scope: "openid",
-          authorization_params: {},
         },
       },
     }),
   );
-  await page.route("https://identity.invalid/authorize?**", async (route) => {
-    const url = new URL(route.request().url());
-    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
-    challenge = url.searchParams.get("code_challenge")!;
+  await page.route("**/v1/auth/start", (route) =>
+    route.fulfill({
+      json: {
+        url: "https://identity.invalid/authorize?state=server-bound-state",
+      },
+    }),
+  );
+  await page.route("https://identity.invalid/authorize?**", (route) => {
     const callback = new URL(redirect);
-    callback.searchParams.set("code", "local-once");
-    callback.searchParams.set("state", url.searchParams.get("state")!);
-    await route.fulfill({
+    callback.searchParams.set("code", "once");
+    callback.searchParams.set("state", "server-bound-state");
+    return route.fulfill({
       status: 302,
       headers: { location: callback.toString() },
     });
   });
-  await page.route("https://identity.invalid/token", async (route) => {
-    const { createHash } = await import("node:crypto");
-    const body = new URLSearchParams(route.request().postData()!);
-    expect(body.get("code")).toBe("local-once");
-    expect(
-      createHash("sha256")
-        .update(body.get("code_verifier")!)
-        .digest("base64url"),
-    ).toBe(challenge);
-    expect(exchanged).toBe(false);
-    exchanged = true;
-    await route.fulfill({
-      headers: { "access-control-allow-origin": new URL(redirect).origin },
-      json: { access_token: "fixture-access-token", token_type: "Bearer" },
+  await page.route("**/v1/auth/complete", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({
+      code: "once",
+      state: "server-bound-state",
     });
+    exchanges++;
+    signedIn = true;
+    await route.fulfill({ json: { authenticated: true } });
+  });
+  await page.route("**/v1/auth/me", (route) =>
+    route.fulfill({
+      status: signedIn ? 200 : 401,
+      json: signedIn ? { role: "reader" } : { error: "sign in" },
+    }),
+  );
+  await page.route("**/v1/auth/logout", (route) => {
+    signedIn = false;
+    return route.fulfill({ json: { authenticated: false } });
   });
   await page.route("**/v1/search?**", (route) => {
-    const authorized =
-      route.request().headers().authorization === "Bearer fixture-access-token";
+    expect(route.request().headers().authorization).toBeUndefined();
     return route.fulfill({
-      status: authorized ? 200 : 401,
-      json: authorized
+      status: signedIn ? 200 : 401,
+      json: signedIn
         ? { runs: [fixture], total: 1, limit: 100, offset: 0 }
         : { error: "sign in" },
     });
@@ -203,18 +205,22 @@ test("SSO exchanges a PKCE code and forgets the access token on reload", async (
   await expect(
     page.getByRole("heading", { name: "customer-support" }),
   ).toBeVisible();
-  expect(exchanged).toBe(true);
   expect(page.url()).toBe(redirect);
-  expect(
-    await page.evaluate(() => sessionStorage.getItem("refract.oidc.pending")),
-  ).toBeNull();
   expect(
     await page.evaluate(() =>
       JSON.stringify({ ...localStorage, ...sessionStorage }),
     ),
-  ).not.toContain("fixture-access-token");
+  ).not.toContain("token");
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "customer-support" }),
+  ).toBeVisible();
+  expect(exchanges).toBe(1);
+  await page.getByRole("button", { name: "Sign out of SSO" }).click();
   await expect(page.getByRole("alert")).toContainText("401");
+  await expect(
+    page.getByRole("button", { name: "Sign out of SSO" }),
+  ).toHaveCount(0);
 });
 
 test("late startup refresh preserves the run selected while authentication config loads", async ({

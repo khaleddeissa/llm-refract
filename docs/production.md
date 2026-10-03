@@ -143,7 +143,7 @@ and rate-limit rejections. Invalid/absent credentials and health requests are no
 retain ingress access logs for those events. An audit-write failure returns HTTP 500 even if a mutation
 already committed; batch retries are content-checked and idempotent.
 
-## Operational validation and remaining limits
+## Deployment verification
 
 Run `cargo test --workspace` for auth, scope isolation, encryption/tampering, retention, batch atomicity,
 secret-file startup and mock HTTP delivery contracts. A disposable PostgreSQL instance can run the real
@@ -166,7 +166,7 @@ The API supports recorded playback, prefix forks and model reruns through operat
 budget and allowed scopes. Provider calls require explicit opt-in. Application tool execution uses
 trusted local SDK/CLI handlers, with approvals for declared side effects. See [rerun](usage/rerun.md) and [migration operations](migrations.md).
 
-## 0.1.4 service extensions
+## Service configuration
 
 See [shared service controls](usage/service-controls.md) for OIDC subject provisioning, managed key
 rotation/revocation, shared database quotas, vector search, audit export/expiry, durable acceptance and

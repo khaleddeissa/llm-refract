@@ -21,7 +21,7 @@ const MAX_BODY: usize = 16 * 1024 * 1024;
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
-fn value(item: &AnyValue) -> Value {
+pub(super) fn value(item: &AnyValue) -> Value {
     match &item.value {
         Some(any_value::Value::StringValue(v)) => json!(v),
         Some(any_value::Value::IntValue(v)) => json!(v),
@@ -33,7 +33,7 @@ fn value(item: &AnyValue) -> Value {
         _ => Value::Null,
     }
 }
-fn attributes(items: &[KeyValue]) -> Value {
+pub(super) fn attributes(items: &[KeyValue]) -> Value {
     Value::Object(
         items
             .iter()

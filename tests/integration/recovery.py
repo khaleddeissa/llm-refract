@@ -158,7 +158,7 @@ def main():
                 source.backup(destination)
                 assert destination.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 33
                 assert (
-                    destination.execute("SELECT COUNT(*) FROM _sqlx_migrations").fetchone()[0] == 8
+                    destination.execute("SELECT COUNT(*) FROM _sqlx_migrations").fetchone()[0] == 11
                 )
         with sqlite3.connect(backup) as source, sqlite3.connect(restored) as destination:
             source.backup(destination)
@@ -184,7 +184,7 @@ def main():
         with service(restored, keyring=True) as (url, _):
             assert request(url, "/v1/runs/recovery-31")["id"] == "recovery-31"
     print(
-        "Recovery passed: v1→v5 migration, 32 concurrent writes, encrypted online backup/restore, key rotation, SIGTERM and crash restart"
+        "Recovery passed: schema migration, 32 concurrent writes, encrypted online backup/restore, key rotation, SIGTERM and crash restart"
     )
 
 

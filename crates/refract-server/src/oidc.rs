@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 #[derive(Clone, Deserialize)]
 struct Claims {
     sub: String,
+    exp: i64,
 }
 struct Cache {
     keys: JwkSet,
@@ -67,6 +68,9 @@ impl Oidc {
         })
     }
     pub async fn subject(&self, token: &str) -> Result<String> {
+        Ok(self.subject_expiry(token).await?.0)
+    }
+    pub async fn subject_expiry(&self, token: &str) -> Result<(String, i64)> {
         ensure!(token.len() <= 16384, "access token is too large");
         let header = decode_header(token)?;
         ensure!(
@@ -140,7 +144,7 @@ impl Oidc {
             !claims.sub.is_empty() && claims.sub.len() <= 512,
             "invalid subject"
         );
-        Ok(claims.sub)
+        Ok((claims.sub, claims.exp))
     }
 }
 

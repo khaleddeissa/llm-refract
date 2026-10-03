@@ -50,7 +50,7 @@ Python / TypeScript / native JSON
 | CLI                  | Inspect, replay, rerun, compare semantics/budgets, evaluate datasets and serve                 | [CLI](docs/usage/cli.md)               |
 | REST API             | Batch/OTLP ingestion, vector search, metrics, comparison and tenant administration             | [API](docs/api.md)                     |
 | Docker image + UI    | Explore execution graphs, usage, bottlenecks and comparison in the browser                     | [Docker](docs/usage/docker.md)         |
-| MCP                  | Give agents sixteen read tools, including metrics/evaluation/search, and two optional writes  | [MCP](docs/usage/mcp.md)               |
+| MCP                  | Give agents sixteen read tools, including metrics/evaluation/search, and two optional writes   | [MCP](docs/usage/mcp.md)               |
 | Skills               | Teach agents supported inspection, debugging, artifact and regression workflows                | [Skills](docs/usage/skills.md)         |
 | GitHub Action        | Compare fresh application output against a reviewed execution baseline                         | [CI](docs/usage/ci.md)                 |
 | `.rfr` format        | Carry readable, versioned, checksummed execution data between these interfaces                 | [File format](docs/usage/artifacts.md) |
@@ -176,5 +176,4 @@ bundled browser workspace. See the [inspector walkthrough](docs/usage/inspector.
 - [Repository structure and the purpose of each directory](docs/repository.md)
 - [Local development, tests and package builds](docs/development.md)
 - [Database migrations](docs/migrations.md)
-- [Current capabilities and remaining roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Apache-2.0 license](LICENSE)

@@ -156,7 +156,6 @@ Audit exports use offset pagination over a live audit log. Export requests thems
 archive consumers must deduplicate entry IDs and account for concurrent inserts, or take a consistent
 database snapshot for a strict point-in-time archive. The API is intended for bounded operational export.
 
-
 ### Signed receiver inboxes and delivery versions
 
 Each webhook contains a database-assigned `version` for its scoped run. Pending payload changes

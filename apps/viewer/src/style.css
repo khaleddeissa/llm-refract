@@ -676,3 +676,13 @@ input {
 .rerun-panel input {
   margin-right: 0.5rem;
 }
+
+.telemetry-panel {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #263c35);
+  border-radius: 10px;
+}
+.telemetry-panel summary {
+  cursor: pointer;
+}

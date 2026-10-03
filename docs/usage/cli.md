@@ -37,7 +37,6 @@ refract rerun baseline.rfr --from evt_2 --executor python3 \
 See [metrics](metrics.md), [executable rerun](rerun.md), and [semantic evaluation](evaluation.md)
 for schemas, trust boundaries, exit codes and runnable examples.
 
-
 ## Configured service models
 
 Use `REFRACT_SERVER_URL` and `REFRACT_API_KEY` (or `_FILE`) for authenticated service commands:

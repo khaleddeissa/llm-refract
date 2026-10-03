@@ -53,7 +53,7 @@ def test_real_stdio_handshake_and_discovery(writes, live):
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
-            assert len(tools.tools) == (17 + 2 * writes + live + (writes and live))
+            assert len(tools.tools) == (18 + 2 * writes + live + (writes and live))
             names = {t.name for t in tools.tools}
             assert ("fork_run" in names) == writes
             assert ("import_run" in names) == writes

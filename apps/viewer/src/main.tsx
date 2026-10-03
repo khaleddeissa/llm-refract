@@ -5,8 +5,14 @@ import type {
   ExecutionEvent,
 } from "../../../packages/typescript/src/index.js";
 import { request, setApiKey, download } from "./api";
-import { beginLogin, completeLogin, type LoginConfiguration } from "./login";
+import {
+  beginLogin,
+  completeLogin,
+  logout,
+  type LoginConfiguration,
+} from "./login";
 import { ExecutionGraph } from "./graph";
+import { TelemetryPanel } from "./telemetry";
 import { RerunControls } from "./generation";
 import type { GenerationModel } from "../../../packages/typescript/src/client.js";
 import { EmbeddingControls } from "./embeddings";
@@ -36,6 +42,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [embeddingProfile, setEmbeddingProfile] = useState("");
   const [authRevision, setAuthRevision] = useState(0);
+  const [ssoSession, setSsoSession] = useState(false);
   const [compareId, setCompareId] = useState("");
   const [semantic, setSemantic] = useState(true);
   const [generationModels, setGenerationModels] = useState<GenerationModel[]>(
@@ -144,10 +151,13 @@ function App() {
               // Remove authorization codes from browser history before any asynchronous exchange.
               window.history.replaceState(null, "", window.location.pathname);
               if (await completeLogin(auth.configuration, callback)) {
-                setAuthenticated(true);
+                setSsoSession(true);
                 setAuthRevision((value) => value + 1);
               }
             }
+            const session = await fetch("/v1/auth/me");
+            setSsoSession(session.ok);
+            if (session.ok) setAuthRevision((value) => value + 1);
           }
         }
         await refresh();
@@ -322,6 +332,24 @@ function App() {
               }}
             >
               Sign in with SSO
+            </button>
+          )}
+          {ssoSession && (
+            <button
+              type="button"
+              onClick={() => {
+                void logout()
+                  .then(() => {
+                    setSsoSession(false);
+                    setApiKey("");
+                    setAuthenticated(false);
+                    setAuthRevision((value) => value + 1);
+                    void refresh();
+                  })
+                  .catch((error) => setError(String(error)));
+              }}
+            >
+              Sign out of SSO
             </button>
           )}
           <label htmlFor="api-key">
@@ -732,6 +760,7 @@ function App() {
             </p>
           </>
         )}
+        <TelemetryPanel key={authRevision} authRevision={authRevision} />
       </main>
     </div>
   );

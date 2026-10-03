@@ -17,6 +17,9 @@ impl Store {
             ("runs", "execution", "id", "''"),
             ("run_embeddings", "embedding", "run_id", "model"),
             ("trace_spans", "payload", "trace_id", "span_id"),
+            ("telemetry", "payload", "id", "''"),
+            ("scim_directories", "payload", "id", "''"),
+            ("browser_sessions", "payload", "id", "''"),
         ] {
             let mut tx = self.transaction().await?;
             let query = format!(
@@ -36,6 +39,9 @@ impl Store {
                 let old: String = row.try_get("payload")?;
                 let identity = match table {
                     "runs" => a.clone(),
+                    "telemetry" => format!("telemetry:{a}"),
+                    "scim_directories" => format!("directory:{a}"),
+                    "browser_sessions" => format!("session:{a}"),
                     "run_embeddings" => format!("embedding:{a}:{b}"),
                     _ => format!("trace:{a}:{b}"),
                 };
@@ -105,6 +111,12 @@ mod tests {
             .await
             .unwrap();
         let job = store.claim_outbox().await.unwrap().unwrap();
+        store.insert_telemetry(&[TelemetryRecord { kind: "logs".into(), trace_id: String::new(), payload: serde_json::json!({"body":"private telemetry"}) }]).await.unwrap();
+        store.update_directory("issuer", &Default::default(), |directory| {
+            directory.users.insert("user".into(),serde_json::json!({"externalId":"subject","active":true}));
+            Ok(serde_json::Value::Null)
+        }).await.unwrap();
+        store.create_browser_session("cookie-digest", &SessionTokens { issuer: "issuer".into(), subject: "subject".into(), access_token: "private-access".into(), refresh_token: Some("private-refresh".into()), access_expires_at: Utc::now().timestamp()+600 }).await.unwrap();
         let mut updated = store.clone();
         updated.options.encryption = Some(
             Encryption::from_keyring_json(
@@ -112,9 +124,16 @@ mod tests {
             )
             .unwrap(),
         );
-        assert_eq!(updated.rotate_encryption(10).await.unwrap(), 2);
+        assert_eq!(updated.rotate_encryption(10).await.unwrap(), 5);
         assert_eq!(updated.rotate_encryption(10).await.unwrap(), 0);
         assert_eq!(updated.get(&run.id).await.unwrap().unwrap(), run);
+        assert_eq!(updated.telemetry("logs", "", 10, 0).await.unwrap()[0].payload["body"], "private telemetry");
+        assert_eq!(updated.directory().await.unwrap().users["user"]["externalId"], "subject");
+        assert_eq!(updated.browser_session("cookie-digest").await.unwrap().unwrap().1.refresh_token.as_deref(), Some("private-refresh"));
+        let (payload,): (String,) = sqlx::query_as("SELECT payload FROM browser_sessions WHERE id='cookie-digest'").fetch_one(&updated.pool).await.unwrap();
+        assert!(payload.starts_with("enc:v2:next:"));
+        assert!(!payload.contains("private-refresh"));
+        updated.validate_encryption_keys().await.unwrap();
         assert!(
             updated
                 .stored_payload(&run.id)
@@ -196,6 +215,9 @@ impl Store {
             ("runs", "execution", "id", "''"),
             ("run_embeddings", "embedding", "run_id", "model"),
             ("trace_spans", "payload", "trace_id", "span_id"),
+            ("telemetry", "payload", "id", "''"),
+            ("scim_directories", "payload", "id", "''"),
+            ("browser_sessions", "payload", "id", "''"),
         ] {
             let columns =
                 format!("organization,project,environment,{a} AS a,{b} AS b,{column} AS payload");
@@ -239,6 +261,9 @@ impl Store {
                     let b: String = row.try_get("b")?;
                     let id = match table {
                         "runs" => a,
+                        "telemetry" => format!("telemetry:{a}"),
+                        "scim_directories" => format!("directory:{a}"),
+                        "browser_sessions" => format!("session:{a}"),
                         "run_embeddings" => format!("embedding:{a}:{b}"),
                         _ => format!("trace:{a}:{b}"),
                     };

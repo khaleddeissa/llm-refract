@@ -6,19 +6,19 @@ an offline `.rfr`, inspected locally, or exported to an authenticated production
 
 ## Supported instrumentation
 
-| Provider or framework                   | Python                                   | Node / TypeScript                      | Covered surface                                                        |
-| --------------------------------------- | ---------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
-| OpenAI                                  | `instrument_openai()`                    | `instrumentOpenAI(client)`             | Responses and Chat Completions, including streaming                    |
-| Anthropic                               | `instrument_anthropic()`                 | `instrumentAnthropic(client)`          | Messages API and streaming                                             |
-| Azure OpenAI                            | `instrument_azure(client)`               | `instrumentAzureOpenAI(client)`        | Configured OpenAI-compatible client                                    |
-| Gemini                                  | `instrument_google(client)`              | `instrumentGemini(client)`             | Google Gen AI content generation and streaming                         |
-| Vertex AI                               | `instrument_google(client)`              | `instrumentVertex(client)`             | Google Gen AI client configured for Vertex                             |
-| Amazon Bedrock                          | `instrument_bedrock(client)`             | `instrumentBedrock(client)`            | Boto3 Converse/ConverseStream; AWS SDK v3 Converse commands            |
-| Ollama, vLLM, compatible gateways       | OpenAI or custom adapter                 | OpenAI or custom adapter               | Compatible Chat Completions/Responses methods provided by the endpoint |
-| Local weights, custom or private models | `instrument_custom(owner, method, ...)`  | `instrumentCustom(client, options)`    | Explicit methods and response normalization                            |
-| LangChain                               | `langchain_handler()`                    | `langchainHandler()` / `instrumentLangChainModel()` | Python chain, model, retrieval and tool callbacks                      |
-| LiteLLM                                 | `instrument_litellm()` | Compatible/custom provider adapter     | Python completion/acompletion/responses/aresponses                     |
-| Langfuse                                | `to_langfuse` / `export_langfuse`        | `toLangfuse` / `exportLangfuse`        | Completed recordings exported through OTLP/HTTP JSON                   |
+| Provider or framework                   | Python                                  | Node / TypeScript                                   | Covered surface                                                        |
+| --------------------------------------- | --------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------- |
+| OpenAI                                  | `instrument_openai()`                   | `instrumentOpenAI(client)`                          | Responses and Chat Completions, including streaming                    |
+| Anthropic                               | `instrument_anthropic()`                | `instrumentAnthropic(client)`                       | Messages API and streaming                                             |
+| Azure OpenAI                            | `instrument_azure(client)`              | `instrumentAzureOpenAI(client)`                     | Configured OpenAI-compatible client                                    |
+| Gemini                                  | `instrument_google(client)`             | `instrumentGemini(client)`                          | Google Gen AI content generation and streaming                         |
+| Vertex AI                               | `instrument_google(client)`             | `instrumentVertex(client)`                          | Google Gen AI client configured for Vertex                             |
+| Amazon Bedrock                          | `instrument_bedrock(client)`            | `instrumentBedrock(client)`                         | Boto3 Converse/ConverseStream; AWS SDK v3 Converse commands            |
+| Ollama, vLLM, compatible gateways       | OpenAI or custom adapter                | OpenAI or custom adapter                            | Compatible Chat Completions/Responses methods provided by the endpoint |
+| Local weights, custom or private models | `instrument_custom(owner, method, ...)` | `instrumentCustom(client, options)`                 | Explicit methods and response normalization                            |
+| LangChain                               | `langchain_handler()`                   | `langchainHandler()` / `instrumentLangChainModel()` | Python chain, model, retrieval and tool callbacks                      |
+| LiteLLM                                 | `instrument_litellm()`                  | Compatible/custom provider adapter                  | Python completion/acompletion/responses/aresponses                     |
+| Langfuse                                | `to_langfuse` / `export_langfuse`       | `toLangfuse` / `exportLangfuse`                     | Completed recordings exported through OTLP/HTTP JSON                   |
 
 “Any provider” means the canonical event format and custom adapters can represent its calls. It does
 not mean every SDK method is automatically instrumented. Native Bedrock, legacy Vertex and Realtime

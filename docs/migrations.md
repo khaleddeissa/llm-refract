@@ -61,7 +61,6 @@ The disposable [recovery rehearsal](../tests/integration/recovery.py) upgrades a
 verifies existing recordings, backs up committed WAL data, restores into a fresh file and tests key
 rotation plus graceful and forced shutdown. Run `make test-recovery` after building the server.
 
-
 Migration `0008_delivery_versions.sql` assigns monotonic delivery versions independently of wall
 clocks. Counters survive payload retention, while inbox tombstones reject delayed older messages.
 After upgrading an RLS deployment, reapply `deploy/production/row-security.sql` before starting its

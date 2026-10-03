@@ -27,7 +27,6 @@ that fits your application; a running server is optional for file recording and 
 | [Repository map](repository.md)   | Understand where each responsibility lives                                          |
 | [Migrations](migrations.md)       | Evolve SQLite/PostgreSQL storage using SQLx                                         |
 | [Architecture](architecture.md)   | Understand engine and interface boundaries                                          |
-| [Roadmap](roadmap.md)             | See implemented capabilities and their operating boundaries                         |
 
 - [Provider extensions and checkpoint continuation](usage/advanced-integrations.md)
 - [OIDC, managed keys, vector search and durable acceptance](usage/service-controls.md)

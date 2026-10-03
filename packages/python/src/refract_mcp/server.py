@@ -278,3 +278,18 @@ if os.environ.get("REFRACT_MCP_ALLOW_LIVE") == "1":
                     "approved_events": approved_events or [],
                 },
             )
+
+
+@mcp.tool(annotations=READ)
+def telemetry_records(
+    kind: str = "logs", trace_id: str = "", limit: int = 50, offset: int = 0
+) -> dict:
+    """Read scoped OTLP logs or metrics, optionally filtering logs by propagated trace ID."""
+    if kind not in {"logs", "metrics"} or not 1 <= limit <= 100 or offset < 0:
+        raise ValueError("invalid telemetry query")
+    return api(
+        "/v1/telemetry?"
+        + urllib.parse.urlencode(
+            {"kind": kind, "trace_id": trace_id, "limit": limit, "offset": offset}
+        )
+    )

@@ -103,20 +103,19 @@ route on the same port. It does not accept execution `.rfr` files.
 
 ## Project embeddings and text search
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/v1/auth/me` | Current authenticated identity, role, and scope |
-| GET | `/v1/embedding-models` | Operator-approved model profiles available to this scope; no credentials/endpoints |
-| GET | `/v1/project/embeddings` | Enabled project profiles and indexing job counts |
-| PUT | `/v1/admin/project/embeddings` | Admin replaces selections with an array of `{profile,is_default,auto_index}` |
-| POST | `/v1/admin/embeddings/reindex` | Admin queues/retries indexing of recorded runs |
-| POST | `/v1/search/text` | Reader submits `{query,profile?,limit?,mode?}`; returns runs and scored matches |
+| Method | Path                           | Purpose                                                                            |
+| ------ | ------------------------------ | ---------------------------------------------------------------------------------- |
+| GET    | `/v1/auth/me`                  | Current authenticated identity, role, and scope                                    |
+| GET    | `/v1/embedding-models`         | Operator-approved model profiles available to this scope; no credentials/endpoints |
+| GET    | `/v1/project/embeddings`       | Enabled project profiles and indexing job counts                                   |
+| PUT    | `/v1/admin/project/embeddings` | Admin replaces selections with an array of `{profile,is_default,auto_index}`       |
+| POST   | `/v1/admin/embeddings/reindex` | Admin queues/retries indexing of recorded runs                                     |
+| POST   | `/v1/search/text`              | Reader submits `{query,profile?,limit?,mode?}`; returns runs and scored matches    |
 
 Text and vector search accept `mode: "auto"` (default), `"exact"`, or `"approximate"`.
 Read the [search guide](usage/search.md) for provider profiles, preprocessing, namespaces,
 worker recovery, cache sizing, and SDK examples. Text search may call the selected provider; vector
 search only uses submitted/stored vectors.
-
 
 ## Generation models and executable branches
 

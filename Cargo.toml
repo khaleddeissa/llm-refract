@@ -25,7 +25,7 @@ base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 hmac = "0.12"
 jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
-opentelemetry-proto = { version = "0.32", features = ["gen-tonic", "trace", "with-serde"] }
+opentelemetry-proto = { version = "0.32", features = ["gen-tonic", "trace", "metrics", "logs", "with-serde"] }
 prost = "0.14"
 tonic = "0.14"
 aws-config = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }

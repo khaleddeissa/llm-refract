@@ -106,7 +106,9 @@ Operators set `REFRACT_GENERATION_PROFILES` or `REFRACT_GENERATION_PROFILES_FILE
     "model": "your-model-id",
     "credential_env": "MODEL_API_KEY",
     "max_output_tokens": 2048,
-    "scopes": [{"organization":"company","project":"support","environment":"dev"}],
+    "scopes": [
+      { "organization": "company", "project": "support", "environment": "dev" }
+    ],
     "grading_rubric": "Preserve refund eligibility, amounts and dates. Penalize unsupported claims."
   }
 ]
@@ -152,12 +154,18 @@ report = client.compare("RUN_ID", branch["id"], grader="candidate", allow_live=T
 
 ```typescript
 import { RefractClient } from "@llm-refract/sdk";
-const client = new RefractClient("http://localhost:8000", process.env.REFRACT_API_KEY);
+const client = new RefractClient(
+  "http://localhost:8000",
+  process.env.REFRACT_API_KEY,
+);
 const branch = await client.rerun("RUN_ID", {
-  profile: "candidate", from_event: "evt_answer", allow_live: true,
+  profile: "candidate",
+  from_event: "evt_answer",
+  allow_live: true,
 });
 const report = await client.compare("RUN_ID", branch.id, {
-  grader: "candidate", allow_live: true,
+  grader: "candidate",
+  allow_live: true,
 });
 ```
 
