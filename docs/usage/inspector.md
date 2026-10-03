@@ -1,99 +1,90 @@
-# Execution inspector
+# Execution Inspector
 
-The inspector is the browser interface bundled with the Docker image. It reads the same REST API
-used by the SDKs and MCP. Start the service with `docker compose up --build -d --wait`, open
-<http://localhost:8000>, and submit an execution using an [SDK](python.md) or the
-[HTTP example](../../examples/http/ingest.py). See [Docker usage](docker.md) for storage and networking.
+The Inspector is the browser UI bundled with Refract's Docker image. It uses the same authenticated
+REST API as the SDKs and MCP. Start with `docker compose up --build -d --wait`, open
+<http://localhost:8000>, and submit a recording through an [SDK](python.md) or the
+[HTTP example](../../examples/http/ingest.py).
 
-## Search and authenticated workspaces
+[Watch the Inspector demo (WebM)](../../assets/Inspector_Demo.webm): inspect a recorded execution,
+compare a policy change, create a model branch, select an embedding model and browse telemetry.
 
-Use the sidebar search for run text and expand **Filter executions** to combine status, model,
-tool name, and minimum duration in milliseconds. The UI calls `GET /v1/search` with structured query
-parameters and paginates 100 matches at a time. Filters combine rather than replacing one another.
+## Inspect an execution
 
-For a secured server enter a bearer API key in **API key (tab memory only)**. It is held in JavaScript
-memory and sent on API calls and artifact downloads. Reloading the tab clears it; nothing is stored
-in local storage or cookies. The server enforces the key's workspace and role. Reader keys can
-inspect/compare/replay; ingest and fork require writer permission. Use HTTPS for remote deployments;
-see [production configuration](../production.md).
+Select a recording in the sidebar. The overview shows cost, wall latency, tokens, model/tool calls,
+first-text latency and cached input tokens. Missing measurements display `—`; coverage indicates
+whether every model call supplied the relevant measurement. Recorded estimates are not invoices.
 
-## Execution graph and observability
+The graph draws recorded parent/child relationships. Select a node to inspect its input, output,
+attributes and replay policy. Independent roots remain separate. Zoom/scroll the graph for larger
+executions; the ordered timeline also provides keyboard-accessible event selection.
 
-The SVG graph draws recorded parent/child relationships. Independent roots remain separate; it does
-not invent edges between consecutive events. Click a node or focus it and press Enter/Space to
-select its recorded input, output, attributes, parent, and replay policy in the inspector. Zoom and
-scroll the graph to navigate branches. The ordered timeline remains available underneath.
+![Current Inspector showing the baseline metrics, causal graph, timeline and selected generation](../../assets/Inspector_Layout_1.PNG)
 
-**Most expensive** and **Slowest event** select the relevant event. Wall latency uses the run's
-start/end timestamps; it is different from summing overlapping span durations. TTFT is the mean of
-available first-text measurements; cached usage and cost exist only when captured. Missing
-measurements remain unknown. The comparison selector immediately shows recorded cost, latency,
-tokens, TTFT and cached-token changes. **Diff** additionally returns the engine's event comparison.
-Keep **Semantic comparison** enabled to see equivalent/changed event counts and per-event reasons.
-The bundled offline grader normalizes token overlap and flags numeric/negation changes; it does not
-establish factual truth or replace human review. Expand **Full execution result** for the exact report.
+This local fixture retrieves a 30-day return policy and drafts an answer. Its 56 tokens, 1,000 ms wall
+latency, 82 ms first-text latency and $0.000840 estimate are deliberately supplied test measurements.
+The screenshots capture the current UI against a running service; they are not design mockups.
 
-The screenshots below preserve the earlier timeline layout. They demonstrate the same recorded
-examples and inspector fields; the current UI additionally includes graph, metrics, search, and API
-key controls described above.
+## Compare behavior and budgets
 
-## Workspace and empty forks
+Choose **Compare with…** to display measurement deltas, then **Diff** for the engine's event comparison.
+**Semantic comparison** adds equivalent/changed counts and explanations. The offline grader uses
+text normalization, token overlap and numeric/negation checks. For a configured domain rubric, select
+a **Semantic grader** and authorize its provider calls. Missing or invalid model judgments fail the
+comparison instead of assuming success. Expand **Full execution result** for the full report.
 
-Choose a run in the left sidebar. The summary shows recorded cost, wall latency, tokens, model/tool
-call counts, mean first-text latency (TTFT), and cached input tokens. Missing measurements show `—`,
-not zero. Cost and token cards show model-call coverage; partially instrumented recordings must not
-be interpreted as complete billing totals. Cost uses application-configured rates. An empty fork is valid: forking before the first event preserves zero
-events. It does not indicate that a model is executing in the background.
+![Current comparison controls and report identifying the changed return-policy deadline](../../assets/Inspector_Layout_2.PNG)
 
-![Inspector workspace showing a selected empty fork and no recorded events](../../assets/Inspector_Layout_1.PNG)
+The candidate changes the deadline from 30 days to 14 days. The local mock grader deliberately reports
+a mismatch; this example demonstrates the workflow, not a model-quality benchmark. See
+[evaluation](evaluation.md) for dataset and budget configuration.
 
-This screenshot shows an empty prefix branch. The event inspector has nothing to display until a run
-with recorded events is selected; the running status is stored metadata, not a live worker indicator.
+## Playback, branches and model experiments
 
-## Inspect a tool call
+- **Replay recorded** returns captured outputs under the recording's policy. It makes no model call.
+- **Fork before event** stores the prefix before the selected event. An empty prefix is valid.
+- **Rerun with a model** calls an operator-approved generation profile and saves a new branch.
+  Authorize live calls and explicitly approve/reuse applicable suffix events before execution.
+- **Export .rfr** downloads a readable, checksummed artifact for SDKs, CLI tools and regression checks.
 
-Select an event in the execution timeline to view its recorded input, output and attributes.
-The example below selects `lookup`, a completed `tool.call` whose output is `{"found": true}`.
-A `null` input means no input was recorded; a zero duration means the recording reports no elapsed time.
+![Current model-rerun controls with an approved local profile and explicit execution consent](../../assets/Inspector_Layout_3.PNG)
 
-![Selected lookup tool call with its recorded JSON output in the event inspector](../../assets/Inspector_Layout_2.PNG)
+Model reruns preserve the source recording. Their panel resets consent when the selected run, event
+or credentials change. Application tool execution belongs in trusted SDK/CLI handlers; a recording
+cannot supply arbitrary executable code. See [rerun modes](rerun.md) and [artifact format](artifacts.md).
 
-## Follow a multi-step execution
+## Search and embedding selection
 
-The timeline preserves event order. This example records retrieval followed by generation; selecting
-`Draft answer` displays its prompt, captured answer, provider/model attributes, parent event and replay
-policy. The duration bars help compare recorded step durations; their sum is not necessarily wall-clock
-runtime when events overlap.
+Use **Search executions** with structured status/model/tool/latency filters, or select a project
+embedding profile in **Search mode**. Project administrators can enable profiles, select the default
+and configure automatic indexing under **Project embeddings**. Provider endpoints and credentials
+remain operator configuration; they are never exposed in the picker.
 
-![Retrieval and generation timeline with the selected answer, parent event and recorded replay policy](../../assets/Inspector_Layout_3.PNG)
+![Current Inspector with project embedding settings and model-selected text search](../../assets/Inspector_Search.PNG)
 
-## Replay, branch, compare and export
+Text search generates a query embedding with the selected model and searches its matching namespace.
+The demo's small local lexical vector fixture verifies this connection; production profiles can use
+approved local or hosted embedding models. See [search configuration](search.md).
 
-1. **Replay recorded** returns captured outputs. It does not call a model or execute a tool.
-2. **Fork before event** creates a stored prefix ending before the selected event. It preserves lineage
-   but does not resume your application. Select a populated run and an event to enable it.
-3. **Compare with…**, then **Diff**, compares the selected run with another recorded run. To test new
-   application behavior, first record a fresh execution and then compare it with the baseline.
-4. **Export .rfr** downloads a readable, checksummed execution artifact. Open it in a text editor or use
-   `refract inspect` / `refract validate`; see the [format guide](artifacts.md).
+## Logs and metrics
 
-These screenshots illustrate recorded example data, not a hosted demo. For a fresh graph with real
-parent relationships and synthetic provider metrics, run the
-[TypeScript instrumentation example](../../examples/typescript/instrumented/README.md) with
-`REFRACT_ENDPOINT=http://localhost:8000` and select `instrumented-agent`.
+Expand **OpenTelemetry logs and metrics**, choose a signal and load records. Logs can be filtered by
+trace ID; each record expands to show its normalized resource, scope and attributes. Metrics preserve
+exported data points and temporality. These records are separate from replayable run snapshots.
 
-Browser tests cover timeline actions, artifact export, graph selection, metrics, comparison,
-structured search, and tab-scoped credentials. Run `npx playwright test -c apps/viewer/playwright.config.ts`
-against a running current server, or set `REFRACT_SERVER_URL` for another test instance.
+![Current telemetry panel showing a redacted log record](../../assets/Inspector_Telemetry.PNG)
 
-## Model experiments
+See [OTLP ingestion](otel.md#logs-and-metrics) for HTTP/protobuf/gRPC configuration and SDK/MCP queries.
 
-Operators expose [generation profiles](rerun.md#server-inspector-sdk-and-mcp-model-reruns). Select an
-event, open **Rerun with a model**, choose a model and authorize the displayed calls. If the suffix
-contains retrieval/tool/state steps, explicitly select output reuse and any required policy approvals.
-The new branch appears immediately and can be compared with its baseline. Original recordings remain
-unchanged. The panel resets consent when the selected event, run or credentials change.
+## Authentication
 
-For domain grading, select a **Semantic grader** next to the comparison controls and authorize grading
-calls. Profiles without a rubric remain available for generation but do not appear as graders. The
-result includes the grader's score, identity and reason; unavailable/invalid model judgments fail.
+Manually entered API keys/access tokens stay in tab memory and clear on reload. The server enforces
+their scope and role on every request. Configured **Sign in with SSO** uses an encrypted server session
+and an HttpOnly cookie, restores access after reload and provides **Sign out of SSO**. Use HTTPS beyond
+trusted local development. See [identity and session controls](service-controls.md#browser-sso).
+
+## Reproduce the captures
+
+The images and WebM come from the [integrated local demo](../development.md#integrated-local-stack-and-inspector-media),
+using PostgreSQL and deterministic model/delivery fixtures. Run `tools/dev/capture-inspector.mjs` after
+the combined smoke to recreate the scenes. Browser tests cover capture actions, artifacts, search,
+graphs, comparison, credentials, persistent SSO UI, model consent and telemetry.

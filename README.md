@@ -22,6 +22,10 @@ Record executions. Inspect their graph. Rerun with new models or code. Compare b
 
 </div>
 
+[![Current Inspector: execution metrics and causal graph](assets/Inspector_Overview.PNG)](assets/Inspector_Demo.webm)
+
+[Watch the Inspector demo (WebM)](assets/Inspector_Demo.webm) · [Inspector guide](docs/usage/inspector.md)
+
 ## AI executions you can inspect, share and compare
 
 `llm-refract` records model calls, tools, retrieval, decisions, state changes, checkpoints and failures
@@ -166,8 +170,6 @@ Regression checks need a **fresh** execution from the code under test.
 
 Explore recorded events, inspect inputs and outputs, replay captured results, and compare runs in the
 bundled browser workspace. See the [inspector walkthrough](docs/usage/inspector.md) for all three views.
-
-[![Execution inspector with a selected generation event](assets/Inspector_Layout_3.PNG)](docs/usage/inspector.md)
 
 ## Explore the project
 

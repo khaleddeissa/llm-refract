@@ -54,3 +54,8 @@ the provider's normal charges; test suites use intercepted HTTP or deterministic
   audit expiry, key rotation and PostgreSQL RLS.
 - `make test-recovery`: disposable migration/backup/restore/load/shutdown rehearsal; scenario and fixture
   provenance are described in [recovery](../docs/usage/recovery.md).
+
+- [SCIM identity provisioning](identity/README.md): create and deactivate a synthetic OIDC subject.
+- [OTLP logs and metrics](otel/README.md): send local fixtures and query normalized records.
+- [Integrated demo and media capture](../docs/development.md#integrated-local-stack-and-inspector-media):
+  all interfaces with PostgreSQL and local model/delivery mocks, including restart verification.
