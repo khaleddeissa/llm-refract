@@ -16,7 +16,7 @@ branding:
 runs:
   using: composite
   steps:
-    - uses: dtolnay/rust-toolchain@1.94.0
+    - uses: dtolnay/rust-toolchain@1.120.0
     - shell: bash
       env:
         REFRACT_SOURCE: ${{ github.action_path }}
