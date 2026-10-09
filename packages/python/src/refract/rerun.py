@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _POLICIES, _now, _snapshot
+from ._community import COMMUNITY_MESSAGE
 from .artifact import pack, unpack
 
 
@@ -206,7 +207,11 @@ def rerun(recording: dict, registry: ExecutorRegistry, **kwargs) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=COMMUNITY_MESSAGE,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("recording", nargs="?")
     parser.add_argument("--executor", required=True, help="Trusted Python module:function")
     parser.add_argument(

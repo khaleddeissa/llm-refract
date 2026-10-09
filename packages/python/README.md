@@ -24,6 +24,11 @@ decisions, state changes, checkpoints and failures — then inspect, replay, for
 
 ## Install
 
+If Refract helps you, a [GitHub star](https://github.com/khaleddeissa/llm-refract) or
+[feedback](https://github.com/khaleddeissa/llm-refract/issues) would be appreciated.
+The SDK prints this thank-you once per process when you create a run or service client with
+stderr connected to a terminal. Set `REFRACT_NO_BANNER=1` to silence it.
+
 ```bash
 pip install llm-refract
 ```

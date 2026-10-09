@@ -1,6 +1,12 @@
+/**
+ * If Refract helps you, a GitHub star or feedback would be appreciated:
+ * https://github.com/khaleddeissa/llm-refract
+ * https://github.com/khaleddeissa/llm-refract/issues
+ */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
+import { showCommunityMessage } from "./community.js";
 export type Json =
   null | boolean | number | string | Json[] | { [key: string]: Json };
 export type EventType =
@@ -272,6 +278,7 @@ export async function run<T>(
     active: true,
     sampled: sampleRate === 1 || Math.random() < sampleRate,
   };
+  showCommunityMessage();
   return context.run(state, async () => {
     let failed = false;
     try {

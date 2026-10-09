@@ -6,6 +6,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from ._community import show_community_message
+
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -27,6 +29,7 @@ class RefractClient:
         self.url = url.rstrip("/")
         self.api_key = api_key
         self._opener = urllib.request.build_opener(_NoRedirect())
+        show_community_message()
 
     def request(
         self, path: str, body: Any = None, *, method: str | None = None, timeout: float = 35

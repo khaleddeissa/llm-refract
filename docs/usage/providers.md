@@ -180,7 +180,7 @@ Run `make setup && make test` for the locked test environment. Executable exampl
 [Node providers](../../examples/typescript/providers/README.md), and the
 [example catalog](../../examples/README.md). Validate your chosen live model before deployment.
 
-## Additional 0.1.4 interfaces
+## Additional 0.1.5 interfaces
 
 See [provider extensions and framework continuation](advanced-integrations.md) for Foundry v1
 authentication contracts, native/async Bedrock, legacy Vertex, local inference clients, Realtime,

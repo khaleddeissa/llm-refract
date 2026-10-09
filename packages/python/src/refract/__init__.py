@@ -1,4 +1,9 @@
-"""Manual, provider-neutral instrumentation with local recording by default."""
+"""Manual, provider-neutral instrumentation with local recording by default.
+
+If Refract helps you, a GitHub star or feedback would be appreciated:
+https://github.com/khaleddeissa/llm-refract
+https://github.com/khaleddeissa/llm-refract/issues
+"""
 
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
 
+from ._community import show_community_message
 from .artifact import pack
 from .client import RefractClient as RefractClient
 
@@ -124,6 +130,7 @@ class Run:
             "events": [],
         }
         self._active = False
+        show_community_message()
 
     def __enter__(self) -> Self:
         if self._active or self.data["status"] != "running":

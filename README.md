@@ -81,7 +81,7 @@ MCP and the UI call the same API. Skills provide operating instructions; they ar
 [Provider coverage](docs/usage/providers.md) · [Instrumentation](docs/usage/python.md) · [Metrics](docs/usage/metrics.md) ·
 [Rerun](docs/usage/rerun.md) · [Evaluation](docs/usage/evaluation.md) · [Operation](docs/production.md)
 
-This checkout targets **0.1.4**. Published package versions may lag this checkout.
+This checkout targets **0.1.5**. Published package versions may lag this checkout.
 
 ## Record in your application
 

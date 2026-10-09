@@ -1,3 +1,4 @@
+import { showCommunityMessage } from "./community.js";
 import type { Execution } from "./index.js";
 
 export interface GenerationModel {
@@ -55,6 +56,7 @@ export class RefractClient {
         "Service URL requires HTTP(S) without credentials, query, or fragment",
       );
     this.url = url.replace(/\/$/, "");
+    showCommunityMessage();
   }
   async request<T>(
     path: string,

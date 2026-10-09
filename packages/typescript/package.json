@@ -1,6 +1,6 @@
 {
   "name": "@llm-refract/sdk",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Node.js SDK for Refract — provider-neutral instrumentation and portable execution artifacts for AI systems.",
   "type": "module",
   "main": "dist/index.js",
@@ -23,6 +23,7 @@
     "directory": "packages/typescript"
   },
   "license": "Apache-2.0",
+  "author": "Khaled Eissa",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
