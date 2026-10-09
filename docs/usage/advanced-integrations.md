@@ -1,6 +1,6 @@
 # Provider extensions and framework continuation
 
-These interfaces are available in the 0.1.4 source checkout. Contract tests use local fixtures and
+These interfaces are available in the 0.1.5 source checkout. Contract tests use local fixtures and
 mock transports; they do not certify access to a particular cloud subscription or model deployment.
 
 ## Foundry and Azure

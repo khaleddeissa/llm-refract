@@ -2450,7 +2450,7 @@ dependencies = [
 
 [[package]]
 name = "refract-artifact"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "refract-core",
@@ -2462,7 +2462,7 @@ dependencies = [
 
 [[package]]
 name = "refract-cli"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2480,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "refract-collector"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "refract-core",
@@ -2490,7 +2490,7 @@ dependencies = [
 
 [[package]]
 name = "refract-core"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "refract-diff"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "refract-core",
  "serde",
@@ -2510,7 +2510,7 @@ dependencies = [
 
 [[package]]
 name = "refract-eval"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "refract-artifact",
@@ -2522,7 +2522,7 @@ dependencies = [
 
 [[package]]
 name = "refract-replay"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2533,7 +2533,7 @@ dependencies = [
 
 [[package]]
 name = "refract-server"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -2566,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "refract-storage"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "aes-gcm",
  "anyhow",

@@ -3,9 +3,26 @@ mod service;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use refract_core::Run;
-use std::{fs, io::Write, path::PathBuf};
+use std::{
+    fs,
+    io::{IsTerminal, Write},
+    path::PathBuf,
+};
+
+const COMMUNITY_MESSAGE: &str = concat!(
+    "    /\\\n",
+    "   /  \\\n",
+    "  / /\\ \\   REFRACT\n",
+    "  \\ \\/ /\n",
+    "   \\  /\n",
+    "    \\/\n\n",
+    "Thanks for using Refract! If it helps you, a GitHub star or feedback would be appreciated.\n",
+    "Star: https://github.com/khaleddeissa/llm-refract\n",
+    "Feedback: https://github.com/khaleddeissa/llm-refract/issues",
+);
+
 #[derive(Parser)]
-#[command(name = "refract", version, about = "Portable AI executions")]
+#[command(name = "refract", version, about = "Portable AI executions", after_help = COMMUNITY_MESSAGE)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -156,7 +173,11 @@ fn write(path: PathBuf, bytes: &[u8]) -> Result<()> {
 }
 #[tokio::main]
 async fn main() -> Result<()> {
-    match Cli::parse().command {
+    let cli = Cli::parse();
+    if std::io::stderr().is_terminal() && std::env::var("REFRACT_NO_BANNER").as_deref() != Ok("1") {
+        let _ = writeln!(std::io::stderr(), "{COMMUNITY_MESSAGE}");
+    }
+    match cli.command {
         Command::Serve => refract_server::serve().await?,
         Command::Search {
             query,

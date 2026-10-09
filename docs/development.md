@@ -81,8 +81,8 @@ The combined smoke uses a disposable PostgreSQL database, the production Docker 
 local provider/webhook/S3 fixtures. No live model account or cloud service is contacted.
 
 ```bash
-docker build -t llm-refract:0.1.4-final .
-export REFRACT_TEST_IMAGE=llm-refract:0.1.4-final
+docker build -t llm-refract:0.1.5-final .
+export REFRACT_TEST_IMAGE=llm-refract:0.1.5-final
 docker compose -p refract-smoke -f tests/integration/compose.yml up -d --wait
 npm run build -w @llm-refract/sdk
 uv run --locked --all-packages --all-extras python tests/integration/full_stack.py

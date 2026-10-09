@@ -16,7 +16,7 @@ services:
       timeout: 3s
       retries: 30
   server:
-    image: ${REFRACT_TEST_IMAGE:-llm-refract:0.1.4-final}
+    image: ${REFRACT_TEST_IMAGE:-llm-refract:0.1.5-final}
     ports:
       - "127.0.0.1:${REFRACT_TEST_PORT:-51098}:8000"
     environment:

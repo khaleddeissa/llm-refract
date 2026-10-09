@@ -3,6 +3,10 @@
 `refract` is the Rust executable. Install from the checkout with `cargo install --path crates/refract-cli`
 or prefix commands with `cargo run -p refract-cli --`. The Docker image also contains this executable.
 
+CLI help includes links to star the repository and share feedback. Commands also print a brief
+thank-you on terminal stderr. Set `REFRACT_NO_BANNER=1` to silence the runtime message.
+Redirected stderr stays quiet, and command results on stdout keep their existing format.
+
 ```bash
 refract doctor
 refract pack tests/fixtures/simple-run/execution.json -o .examples/original.rfr
